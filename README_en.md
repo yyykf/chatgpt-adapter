@@ -4,7 +4,7 @@
   简体中文
 </p>
 
-### 喵小爱 - ai adaptor
+### ai adaptor
 
 * The library integrates `openai-api `, `openai-web`, `claude for slack`, `bing` and many AI docking interfaces
 * Integrated preset processor for preprocessing preset templates
