@@ -81,6 +81,9 @@ func repositoryXmlHandle(r *cmdtypes.RequestDTO) {
 func ResponseError(ctx *gin.Context, err string, isStream bool) {
 	logrus.Error(err)
 	if isStream {
+		if ctx.Writer.Header().Get("Content-Type") == "" {
+			ctx.Writer.Header().Set("Content-Type", "text/event-stream")
+		}
 		marshal, e := json.Marshal(BuildCompletion("Error: " + err))
 		if e != nil {
 			return
@@ -92,6 +95,9 @@ func ResponseError(ctx *gin.Context, err string, isStream bool) {
 }
 
 func SSEString(ctx *gin.Context, content string) bool {
+	if ctx.Writer.Header().Get("Content-Type") == "" {
+		ctx.Writer.Header().Set("Content-Type", "text/event-stream")
+	}
 	completion := BuildCompletion(content)
 	marshal, err := json.Marshal(completion)
 	if err != nil {
@@ -108,6 +114,9 @@ func SSEString(ctx *gin.Context, content string) bool {
 }
 
 func SSEEnd(ctx *gin.Context) {
+	if ctx.Writer.Header().Get("Content-Type") == "" {
+		ctx.Writer.Header().Set("Content-Type", "text/event-stream")
+	}
 	// 结尾img标签会被吞？？多加几个空格试试
 	marshal, _ := json.Marshal(BuildCompletion("  "))
 	if _, err := ctx.Writer.Write(append([]byte("data: "), marshal...)); err != nil {
