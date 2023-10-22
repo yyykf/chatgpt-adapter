@@ -4,7 +4,7 @@
   简体中文
 </p>
 
-### 喵小爱 - ai适配器
+### ai适配器
 
 * 该库集成了openai-api、openai-web、claude for slack、bing 多款AI的对接接口
 * 集成预设处理器，可对预设模版预处理
