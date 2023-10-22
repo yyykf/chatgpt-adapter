@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"time"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	cmdvars "github.com/bincooo/AutoAI/cmd/vars"
+	cmdvars "github.com/bincooo/chatgpt-adapter/cmd/vars"
 	"github.com/bincooo/claude-api"
 	"github.com/bincooo/claude-api/util"
 	clvars "github.com/bincooo/claude-api/vars"

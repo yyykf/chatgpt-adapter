@@ -1,12 +1,12 @@
-package AutoAI
+package adapter
 
 import (
 	"errors"
-	"github.com/bincooo/AutoAI/internal/chain"
-	"github.com/bincooo/AutoAI/internal/plat"
-	"github.com/bincooo/AutoAI/store"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/internal/chain"
+	"github.com/bincooo/chatgpt-adapter/internal/plat"
+	"github.com/bincooo/chatgpt-adapter/store"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/sirupsen/logrus"
 	"strings"
 )

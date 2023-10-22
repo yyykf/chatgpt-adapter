@@ -1,7 +1,7 @@
 package chain
 
 import (
-	"github.com/bincooo/AutoAI/types"
+	"github.com/bincooo/chatgpt-adapter/types"
 	"strings"
 )
 

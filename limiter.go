@@ -1,9 +1,9 @@
-package AutoAI
+package adapter
 
 import (
 	"errors"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"time"

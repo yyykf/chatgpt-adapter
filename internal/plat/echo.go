@@ -1,7 +1,7 @@
 package plat
 
 import (
-	"github.com/bincooo/AutoAI/types"
+	"github.com/bincooo/chatgpt-adapter/types"
 	"strconv"
 	"time"
 )

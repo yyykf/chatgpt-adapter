@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"os"
 	"strings"
 )

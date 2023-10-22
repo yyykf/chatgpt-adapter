@@ -1,22 +1,22 @@
-module github.com/bincooo/AutoAI
+module github.com/bincooo/chatgpt-adapter
 
 go 1.20
 
 require (
 	github.com/BurntSushi/toml v1.3.2
-	github.com/bincooo/claude-api v1.0.3-0.20231006025050-b13fff6295cc
-	github.com/bincooo/edge-api v1.0.1-0.20231014110550-58d04905118f
-	github.com/bincooo/openai-wapi v1.0.1-0.20230717215411-79a74f385b4f
+	github.com/bincooo/claude-api v1.0.3
+	github.com/bincooo/edge-api v1.0.1
+	github.com/bincooo/openai-wapi v1.0.1
 	github.com/bincooo/requests v0.0.0-20230720064210-7eae5d6c9d1e
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.3.1
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
-	github.com/sashabaranov/go-openai v1.15.3
+	github.com/sashabaranov/go-openai v1.16.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
-	golang.org/x/text v0.9.0
+	golang.org/x/text v0.13.0
 )
 
 require (

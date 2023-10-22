@@ -3,8 +3,8 @@ package plat
 import (
 	"context"
 	"errors"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	chat "github.com/bincooo/openai-wapi"
 	"github.com/sirupsen/logrus"
 	"io"

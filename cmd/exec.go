@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bincooo/AutoAI/cmd/util/pool"
-	"github.com/bincooo/AutoAI/internal/plat"
-	"github.com/bincooo/AutoAI/types"
+	"github.com/bincooo/chatgpt-adapter/cmd/util/pool"
+	"github.com/bincooo/chatgpt-adapter/internal/plat"
+	"github.com/bincooo/chatgpt-adapter/types"
 	"github.com/bincooo/claude-api/util"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	cmdtypes "github.com/bincooo/AutoAI/cmd/types"
-	cmdutil "github.com/bincooo/AutoAI/cmd/util"
-	cmdvars "github.com/bincooo/AutoAI/cmd/vars"
+	cmdtypes "github.com/bincooo/chatgpt-adapter/cmd/types"
+	cmdutil "github.com/bincooo/chatgpt-adapter/cmd/util"
+	cmdvars "github.com/bincooo/chatgpt-adapter/cmd/vars"
 )
 
 var (
@@ -48,7 +48,7 @@ func Exec() {
 	var rootCmd = &cobra.Command{
 		Use:     "MiaoX",
 		Short:   "MiaoX控制台工具",
-		Long:    "MiaoX是集成了多款AI接口的控制台工具\n  > 请在github star本项目获取最新版本: \nhttps://github.com/bincooo/AutoAI\nhttps://github.com/bincooo/claude-api",
+		Long:    "MiaoX是集成了多款AI接口的控制台工具\n  > 请在github star本项目获取最新版本: \nhttps://github.com/bincooo/chatgpt-adapter\nhttps://github.com/bincooo/claude-api",
 		Run:     Run,
 		Version: VERSION,
 	}
@@ -166,7 +166,7 @@ func genSessionKeys() {
 }
 
 func index(ctx *gin.Context) {
-	ctx.String(200, "Start by http[s]://"+ctx.Request.Host+"/v1\n\nversion: "+VERSION+"\nproject: github.com/bincooo/AutoAI")
+	ctx.String(200, "Start by http[s]://"+ctx.Request.Host+"/v1\n\nversion: "+VERSION+"\nproject: github.com/bincooo/chatgpt-adapter")
 }
 
 func models(ctx *gin.Context) {

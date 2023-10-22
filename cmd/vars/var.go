@@ -2,7 +2,7 @@ package vars
 
 import (
 	"github.com/BurntSushi/toml"
-	"github.com/bincooo/AutoAI"
+	"github.com/bincooo/chatgpt-adapter"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 	"os"
@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	Manager = AutoAI.NewBotManager()
+	Manager = adapter.NewBotManager()
 
 	localizes *i18n.Localizer
 

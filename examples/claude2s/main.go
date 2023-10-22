@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/bincooo/AutoAI"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/sirupsen/logrus"
 	"time"
 )
@@ -20,7 +20,7 @@ func init() {
 }
 
 func main() {
-	manager := AutoAI.NewBotManager()
+	manager := adapter.NewBotManager()
 	//prompt1 := "「现在就开始吧」扑向你,把你衣服脱光"
 	context := ContextLmt("1008611")
 	for {

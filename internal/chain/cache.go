@@ -1,9 +1,9 @@
 package chain
 
 import (
-	"github.com/bincooo/AutoAI/store"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/store"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/sirupsen/logrus"
 	"strings"
 

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bincooo/AutoAI/cmd/util/pool"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/utils"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/cmd/util/pool"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/utils"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"sync"
 
-	cmdtypes "github.com/bincooo/AutoAI/cmd/types"
-	cmdvars "github.com/bincooo/AutoAI/cmd/vars"
+	cmdtypes "github.com/bincooo/chatgpt-adapter/cmd/types"
+	cmdvars "github.com/bincooo/chatgpt-adapter/cmd/vars"
 	cltypes "github.com/bincooo/claude-api/types"
 )
 

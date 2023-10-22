@@ -2,8 +2,8 @@ package plat
 
 import (
 	"context"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/bincooo/claude-api"
 	clTypes "github.com/bincooo/claude-api/types"
 	clVars "github.com/bincooo/claude-api/vars"

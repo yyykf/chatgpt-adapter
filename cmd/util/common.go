@@ -3,8 +3,8 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	cmdtypes "github.com/bincooo/AutoAI/cmd/types"
-	"github.com/bincooo/AutoAI/cmd/vars"
+	cmdtypes "github.com/bincooo/chatgpt-adapter/cmd/types"
+	"github.com/bincooo/chatgpt-adapter/cmd/vars"
 	"github.com/bincooo/requests"
 	"github.com/bincooo/requests/url"
 	"github.com/gin-gonic/gin"

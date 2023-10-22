@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/bincooo/AutoAI"
-	"github.com/bincooo/AutoAI/types"
-	"github.com/bincooo/AutoAI/utils"
-	"github.com/bincooo/AutoAI/vars"
+	"github.com/bincooo/chatgpt-adapter"
+	"github.com/bincooo/chatgpt-adapter/types"
+	"github.com/bincooo/chatgpt-adapter/utils"
+	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/jinzhu/copier"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -37,7 +37,7 @@ func init() {
 }
 
 func main() {
-	lmt := AutoAI.NewCommonLimiter()
+	lmt := adapter.NewCommonLimiter()
 	if err := lmt.RegChain("embellish", &EmbellishInterceptor{}); err != nil {
 		panic(err)
 	}
