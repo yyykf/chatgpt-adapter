@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	token  = "nv-xxx"
+	token  = "fastgpt-xxxx"
 	preset = `接下来你需要通过解析我的JSON内容与我进行对话：
 ---
 {
@@ -74,13 +74,13 @@ func Context() types.ConversationContext {
 	return types.ConversationContext{
 		Id: "1008611",
 		//Bot:     vars.Bing,
-		Bot:   vars.OpenAIAPI,
-		Model: "gpt-4-32k",
+		Bot: vars.OpenAIAPI,
+		//Model: "gpt-4-32k",
 		Token: token,
 		//Preset:  preset,
 		//Format:  presetMessage,
 		Chain:   "",
-		BaseURL: "https://xxxx",
+		BaseURL: "http://xxxx/api/v1",
 		Proxy:   "http://127.0.0.1:7890",
 		//Model:   edge.Sydney,
 		MaxTokens: 32768,

@@ -1,19 +1,24 @@
 package plat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"github.com/bincooo/chatgpt-adapter/store"
 	"github.com/bincooo/chatgpt-adapter/types"
 	"github.com/bincooo/chatgpt-adapter/vars"
+	"github.com/bincooo/go-openai"
 	wapi "github.com/bincooo/openai-wapi"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+)
+
+var (
+	oaiErrorPrefix = []byte(`{"message":`)
 )
 
 type OpenAIAPIBot struct {
@@ -96,7 +101,18 @@ func (bot *OpenAIAPIBot) makeCompletionStream(timeout context.Context, ctx types
 	if bot.client == nil || bot.token != ctx.Token {
 		bot.makeClient(ctx.BaseURL, ctx.Proxy, ctx.Token)
 	}
-	return bot.client.CreateChatCompletionStream(timeout, request)
+	return bot.client.CreateChatCompletionStream(timeout, request, func(line []byte) error {
+		if bytes.HasPrefix(line, oaiErrorPrefix) {
+			var obj map[string]any
+			if e := json.Unmarshal(line, &obj); e != nil {
+				return e
+			}
+			if message, ok := obj["message"]; ok && message != "" {
+				return errors.New(message.(string))
+			}
+		}
+		return nil
+	})
 }
 
 func (bot *OpenAIAPIBot) completionMessage(ctx types.ConversationContext) []openai.ChatCompletionMessage {

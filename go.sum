@@ -11,6 +11,8 @@ github.com/bincooo/claude-api v1.0.3 h1:A8/4DXC9tGD0kzx7rOxyVBoTuv09wUJTC/Kw5j9L
 github.com/bincooo/claude-api v1.0.3/go.mod h1:qoD2FHwGq2+Ohl5xi+jFFYjAGxP0V1ImeIg6R05uqPQ=
 github.com/bincooo/edge-api v1.0.1 h1:7chITZwNvgFsNSldZK8vMD+Kqlv3hIkQeSpcIo/+nA0=
 github.com/bincooo/edge-api v1.0.1/go.mod h1:fFR88eNuEs5JhRvGLzbbsr0a+XfU5c3pdQCqLnCa1k8=
+github.com/bincooo/go-openai v0.0.0-20231023102128-e9d3ccb5c34b h1:bjtmXw38QXTtMZlYH+iexAC4bO30PvqHtDUhAj5je5E=
+github.com/bincooo/go-openai v0.0.0-20231023102128-e9d3ccb5c34b/go.mod h1:chV5b2ufzuQ0nyNF4CcRfIbpFdM0zQ5wQijE+PeG3YI=
 github.com/bincooo/openai-wapi v1.0.1 h1:DxoXrjGKvEHjn19yhJVmMAzX84Fv89W+XgbFUCNXnwU=
 github.com/bincooo/openai-wapi v1.0.1/go.mod h1:hb9EoQHYsB8xy/a62qEBNPcNosBu1U6i6N2cgmdJU3E=
 github.com/bincooo/requests v0.0.0-20230720064210-7eae5d6c9d1e h1:38ztKJW0K6qQGitqAlcJs8O2nal60qYoS9oNZnpkZWE=
@@ -99,8 +101,6 @@ github.com/samber/go-gpt-3-encoder v0.3.1 h1:YWb9GsGYUgSX/wPtsEHjyNGRQXsQ9vDCg9S
 github.com/samber/go-gpt-3-encoder v0.3.1/go.mod h1:27nvdvk9ZtALyNtgs9JsPCMYja0Eleow/XzgjqwRtLU=
 github.com/samber/lo v1.37.0 h1:XjVcB8g6tgUp8rsPsJ2CvhClfImrpL04YpQHXeHPhRw=
 github.com/samber/lo v1.37.0/go.mod h1:9vaz2O4o8oOnK23pd2TrXufcbdbJIa3b6cstBWKpopA=
-github.com/sashabaranov/go-openai v1.15.3 h1:rzoNK9n+Cak+PM6OQ9puxDmFllxfnVea9StlmhglXqA=
-github.com/sashabaranov/go-openai v1.15.3/go.mod h1:lj5b/K+zjTSFxVLijLSTDZuP7adOgerWeFyZLUhAKRg=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/spf13/cobra v1.7.0 h1:hyqWnYt1ZQShIddO5kBpj3vu05/++x6tJ6dg8EC572I=

@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/bincooo/claude-api v1.0.3
 	github.com/bincooo/edge-api v1.0.1
+	github.com/bincooo/go-openai v0.0.0-20231023102128-e9d3ccb5c34b
 	github.com/bincooo/openai-wapi v1.0.1
 	github.com/bincooo/requests v0.0.0-20230720064210-7eae5d6c9d1e
 	github.com/gin-gonic/gin v1.9.1
@@ -13,7 +14,6 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
-	github.com/sashabaranov/go-openai v1.15.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/text v0.13.0
