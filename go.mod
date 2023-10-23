@@ -13,7 +13,7 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
-	github.com/sashabaranov/go-openai v1.16.0
+	github.com/sashabaranov/go-openai v1.15.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/text v0.13.0
