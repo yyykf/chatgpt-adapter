@@ -95,7 +95,7 @@ func (bot *OpenAIAPIBot) makeCompletionStream(timeout context.Context, ctx types
 		Model:    model,
 		Messages: bot.completionMessage(ctx),
 		//MaxTokens:   ctx.MaxTokens,
-		Temperature: 0.8,
+		Temperature: ctx.Temperature,
 		Stream:      true,
 	}
 	if bot.client == nil || bot.token != ctx.Token {
