@@ -42,18 +42,25 @@ func (bot *BingBot) Reply(ctx types.ConversationContext) chan types.PartialRespo
 		defer close(message)
 		session, ok := bot.sessions[ctx.Id]
 		if !ok {
-			chat, err := edge.New(ctx.Token, ctx.BaseURL)
+			options, err := edge.NewDefaultOptions(ctx.Token, ctx.BaseURL)
 			if err != nil {
 				message <- types.PartialResponse{Error: err}
 				return
 			}
 
-			chat.RwBf = RwBf
-			chat.KievRPSSecAuth = KievAuth
+			options.RwBf = RwBf
+			options.KievRPSSecAuth = KievAuth
 
-			chat.Model = ctx.Model
+			options.Model = ctx.Model
+			options.Proxy = ctx.Proxy
+
+			chat, err := edge.New(options)
+			if err != nil {
+				message <- types.PartialResponse{Error: err}
+				return
+			}
+
 			chat.TraceId = ctx.AppId
-			chat.Proxy = ctx.Proxy
 			session = chat
 			bot.sessions[ctx.Id] = session
 		}

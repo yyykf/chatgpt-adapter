@@ -193,7 +193,7 @@ func createBingAIConversation(r *cmdtypes.RequestDTO, token string, IsClose func
 				"contextType": "WebPage",
 				"messageType": "Context",
 				"sourceName":  "history.md",
-				"sourceUrl":   "file:///Users/admin/Desktop/history.md",
+				"sourceUrl":   "file:///tmp/history.md",
 				"privacy":     "Internal",
 			},
 		}, latelyMessages...)
@@ -224,17 +224,18 @@ func createBingAIConversation(r *cmdtypes.RequestDTO, token string, IsClose func
 		token = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	return &types.ConversationContext{
-		Id:      id,
-		Token:   token,
-		Preset:  preset,
-		Prompt:  message,
-		Bot:     bot,
-		Model:   model,
-		Proxy:   cmdvars.Proxy,
-		AppId:   appId,
-		BaseURL: bingBaseURL,
-		Chain:   chain,
-		H:       bingAIHandle(IsClose),
+		Id:          id,
+		Token:       token,
+		Preset:      preset,
+		Prompt:      message,
+		Bot:         bot,
+		Model:       model,
+		Proxy:       cmdvars.Proxy,
+		Temperature: r.Temperature,
+		AppId:       appId,
+		BaseURL:     bingBaseURL,
+		Chain:       chain,
+		H:           bingAIHandle(IsClose),
 	}, nil
 }
 
@@ -254,13 +255,15 @@ func bingAIHandle(IsClose func() bool) types.CustomCacheHandler {
 				if index+4 > eIndex {
 					return types.MAT_MATCHING, content
 				}
-				regexCompile := regexp.MustCompile(`\[\d]`)
+				regexCompile := regexp.MustCompile(`\[\d+]`)
 				content = regexCompile.ReplaceAllString(content, "")
-				regexCompile = regexp.MustCompile(`\[\^\d\^]`)
+				regexCompile = regexp.MustCompile(`\[\^\d+\^]:`)
 				content = regexCompile.ReplaceAllString(content, "")
-				regexCompile = regexp.MustCompile(`\[\^\d\^\^`)
+				regexCompile = regexp.MustCompile(`\[\^\d+\^]`)
 				content = regexCompile.ReplaceAllString(content, "")
-				regexCompile = regexp.MustCompile(`\[\^\d\^`)
+				regexCompile = regexp.MustCompile(`\[\^\d+\^\^`)
+				content = regexCompile.ReplaceAllString(content, "")
+				regexCompile = regexp.MustCompile(`\[\^\d+\^`)
 				content = regexCompile.ReplaceAllString(content, "")
 				if strings.HasSuffix(content, "[") || strings.HasSuffix(content, "[^") {
 					return types.MAT_MATCHING, content
@@ -278,11 +281,13 @@ func bingAIHandle(IsClose func() bool) types.CustomCacheHandler {
 				if index+4 > eIndex {
 					return types.MAT_MATCHING, content
 				}
-				regexCompile := regexp.MustCompile(`\(\^\d\^\)`)
+				regexCompile := regexp.MustCompile(`\(\^\d+\^\):`)
 				content = regexCompile.ReplaceAllString(content, "")
-				regexCompile = regexp.MustCompile(`\(\^\d\^\^`)
+				regexCompile = regexp.MustCompile(`\(\^\d+\^\)`)
 				content = regexCompile.ReplaceAllString(content, "")
-				regexCompile = regexp.MustCompile(`\(\^\d\^`)
+				regexCompile = regexp.MustCompile(`\(\^\d+\^\^`)
+				content = regexCompile.ReplaceAllString(content, "")
+				regexCompile = regexp.MustCompile(`\(\^\d+\^`)
 				content = regexCompile.ReplaceAllString(content, "")
 				if strings.HasSuffix(content, "(") || strings.HasSuffix(content, "(^") {
 					return types.MAT_MATCHING, content
