@@ -11,8 +11,8 @@ github.com/bincooo/claude-api v1.0.3 h1:A8/4DXC9tGD0kzx7rOxyVBoTuv09wUJTC/Kw5j9L
 github.com/bincooo/claude-api v1.0.3/go.mod h1:qoD2FHwGq2+Ohl5xi+jFFYjAGxP0V1ImeIg6R05uqPQ=
 github.com/bincooo/edge-api v1.0.2-0.20231025124917-09f0d1754667 h1:O9e/vxKUjHNQsCs8K+1VtTThpcD2Q4aMba10vJwEUoM=
 github.com/bincooo/edge-api v1.0.2-0.20231025124917-09f0d1754667/go.mod h1:fFR88eNuEs5JhRvGLzbbsr0a+XfU5c3pdQCqLnCa1k8=
-github.com/bincooo/go-openai v0.0.0-20231023102128-e9d3ccb5c34b h1:bjtmXw38QXTtMZlYH+iexAC4bO30PvqHtDUhAj5je5E=
-github.com/bincooo/go-openai v0.0.0-20231023102128-e9d3ccb5c34b/go.mod h1:chV5b2ufzuQ0nyNF4CcRfIbpFdM0zQ5wQijE+PeG3YI=
+github.com/bincooo/go-openai v0.0.0-20231030212055-1bb1195dd7f8 h1:d/XhtBpfI22EQ8SbQwA/t3q1AgKY+RSQcXamBMTTTic=
+github.com/bincooo/go-openai v0.0.0-20231030212055-1bb1195dd7f8/go.mod h1:chV5b2ufzuQ0nyNF4CcRfIbpFdM0zQ5wQijE+PeG3YI=
 github.com/bincooo/openai-wapi v1.0.1 h1:DxoXrjGKvEHjn19yhJVmMAzX84Fv89W+XgbFUCNXnwU=
 github.com/bincooo/openai-wapi v1.0.1/go.mod h1:hb9EoQHYsB8xy/a62qEBNPcNosBu1U6i6N2cgmdJU3E=
 github.com/bincooo/requests v0.0.0-20230720064210-7eae5d6c9d1e h1:38ztKJW0K6qQGitqAlcJs8O2nal60qYoS9oNZnpkZWE=

@@ -280,8 +280,8 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 	if len(r.Messages) == 0 {
 		return result, s, errors.New(cmdvars.I18n("MESSAGES_EMPTY"))
 	} else {
-		// 将repository的内容往上挪
-		repositoryXmlHandle(r)
+		// 知识库上移
+		postRef(r)
 
 		// ====  Schema匹配 =======
 		compileRegex := regexp.MustCompile(`schema\s?\{[^}]*}`)
@@ -298,8 +298,8 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 
 		optimize := func(text string, s schema) string {
 			// ==== I apologize,[^\n]+ 道歉匹配 ======
-			cR := regexp.MustCompile(`I apologize[^\n]+`)
-			text = cR.ReplaceAllString(text, "")
+			reg := regexp.MustCompile(`I apologize[^\n]+`)
+			text = reg.ReplaceAllString(text, "")
 			// =========================
 
 			if s.TrimAssistant {
