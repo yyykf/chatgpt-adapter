@@ -96,6 +96,8 @@ func (bot *OpenAIAPIBot) makeCompletionStream(timeout context.Context, ctx types
 	var variables map[string]string = nil
 	if strings.Contains(ctx.Preset, "<!VARS!>") {
 		variables = make(map[string]string)
+		variables["name"] = ctx.Name
+		variables["cName"] = ctx.CName
 		variables["character"] = strings.Replace(ctx.Preset, "<!VARS!>", "", -1)
 		ctx.Preset = ""
 	}
