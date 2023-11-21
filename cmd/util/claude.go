@@ -203,12 +203,11 @@ func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
 	if messageL == 0 {
 		return false
 	}
-	content := r.Messages[messageL-1]["content"]
 	// 找最后一条用户发言
-	for i := messageL - 1; i >= 0; i++ {
+	for i := messageL - 1; i >= 0; i-- {
 		message := r.Messages[i]
 		if message["role"] == "user" {
-			if content != "/ping" {
+			if message["content"] != "/ping" {
 				return false
 			}
 			break
