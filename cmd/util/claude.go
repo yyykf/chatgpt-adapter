@@ -204,8 +204,15 @@ func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
 		return false
 	}
 	content := r.Messages[messageL-1]["content"]
-	if content != "/ping" {
-		return false
+	// 找最后一条用户发言
+	for i := messageL - 1; i >= 0; i++ {
+		message := r.Messages[i]
+		if message["role"] == "user" {
+			if content != "/ping" {
+				return false
+			}
+			break
+		}
 	}
 
 	if cmdvars.EnablePool && pool.IsLocal {
