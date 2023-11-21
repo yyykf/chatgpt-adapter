@@ -25,8 +25,7 @@ import (
 var (
 	muLock sync.Mutex
 
-	HARM            = "I apologize, but I will not provide any responses that violate Anthropic's Acceptable Use Policy or could promote harm."
-	ViolatingPolicy = "Your account has been disabled for violating Anthropic's Acceptable Use Policy."
+	HARM = "I apologize, but I will not provide any responses that violate Anthropic's Acceptable Use Policy or could promote harm."
 
 	H = "H:"
 	A = "A:"
@@ -56,6 +55,12 @@ type schema struct {
 }
 
 func DoClaudeComplete(ctx *gin.Context, token string, r *cmdtypes.RequestDTO) {
+
+	// ping 打印本地池的可用情况
+	if pingRef(ctx, r) {
+		return
+	}
+
 	conversationMapper := make(map[string]*types.ConversationContext)
 	isDone := false
 	fmt.Println("TOKEN_KEY: " + token)
@@ -162,8 +167,8 @@ label:
 	}
 
 	// 违反政策被禁用
-	if strings.Contains(partialResponse.Message, ViolatingPolicy) {
-		pool.CurrError(errors.New(ViolatingPolicy))
+	if strings.Contains(partialResponse.Message, cmdvars.ViolatingPolicy) {
+		pool.CurrError(errors.New(cmdvars.ViolatingPolicy))
 		CleanToken(token)
 		if !isDone && retry > 0 {
 			logrus.Warn("重试中...")
@@ -190,6 +195,37 @@ label:
 			logrus.Warn(cmdvars.I18n("HARM"))
 		}
 	}
+}
+
+// 如果是ping指令，打印本地池的使用情况
+func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
+	messageL := len(r.Messages)
+	if messageL == 0 {
+		return false
+	}
+	content := r.Messages[messageL-1]["content"]
+	if content != "/ping" {
+		return false
+	}
+
+	if cmdvars.EnablePool && pool.IsLocal {
+
+		shortVal := func(val string) string {
+			return val[:5] + "***" + val[len(val)-10:]
+		}
+
+		markdown := "SESSION KEY使用如下：\n| KEY | DIE | ERROR |\n| ----------- | ----------- | ----------- |\n"
+		for _, key := range pool.Keys {
+			err := ""
+			if key.Error != nil {
+				err = key.Error.Error()
+			}
+			markdown += "| " + shortVal(key.Token) + " | " + strconv.FormatBool(key.IsDie) + " | " + err + " |\n"
+		}
+		SSEString(ctx, markdown)
+		return true
+	}
+	return false
 }
 
 // 构建claude-2.0上下文

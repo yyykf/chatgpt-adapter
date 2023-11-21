@@ -27,6 +27,8 @@ var (
 
 	EnablePool bool
 	Gen        bool
+
+	ViolatingPolicy = "Your account has been disabled for violating Anthropic's Acceptable Use Policy."
 )
 
 func init() {

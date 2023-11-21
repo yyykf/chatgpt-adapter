@@ -155,7 +155,10 @@ func genSessionKeys() {
 		}
 		err = pool.TestMessage(token)
 		if err != nil {
-			// logrus.Error("Error: ", email, err)
+			logrus.Warn("[retry...]: ", email, err)
+			if strings.Contains(err.Error(), "Invalid model") {
+
+			}
 			if cnt > 0 {
 				cnt--
 				goto label
