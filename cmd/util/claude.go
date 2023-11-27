@@ -26,6 +26,7 @@ var (
 	muLock sync.Mutex
 
 	HARM = "I apologize, but I will not provide any responses that violate Anthropic's Acceptable Use Policy or could promote harm."
+	BAN  = "Your account has been disabled after an automatic review of your recent activities that violate our Terms of Service."
 
 	H = "H:"
 	A = "A:"
@@ -193,6 +194,10 @@ label:
 			CleanToken(token)
 			pool.CurrError(errors.New(HARM))
 			logrus.Warn(cmdvars.I18n("HARM"))
+		} else if strings.Contains(partialResponse.Message, BAN) {
+			CleanToken(token)
+			pool.CurrError(errors.New(BAN))
+			logrus.Warn(cmdvars.I18n("BAN"))
 		}
 	}
 }
@@ -248,16 +253,6 @@ func createClaudeConversation(token string, r *cmdtypes.RequestDTO, IsClose func
 		id = "claude-" + uuid.NewString()
 		bot = vars.Claude
 		model = vars.Model4WebClaude2S
-	case "claude-1.0", "claude-1.2", "claude-1.3":
-		id = "claude-slack"
-		bot = vars.Claude
-		split := strings.Split(token, ",")
-		token = split[0]
-		if len(split) > 1 {
-			appId = split[1]
-		} else {
-			return nil, errors.New("请在请求头中提供appId")
-		}
 	default:
 		return nil, errors.New(cmdvars.I18n("UNKNOWN_MODEL") + "`" + r.Model + "`")
 	}

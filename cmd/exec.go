@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	VERSION = "v1.0.12"
+	VERSION = "v1.0.13"
 )
 
 func main() {
@@ -175,7 +175,6 @@ func index(ctx *gin.Context) {
 func models(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
 		"data": []gin.H{
-			{"id": "claude-1.0"},
 			{"id": "claude-2.0"},
 			{"id": "BingAI"},
 		},
