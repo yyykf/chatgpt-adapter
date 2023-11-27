@@ -82,6 +82,7 @@ func init() {
 						mu.Unlock()
 						CacheKey("CACHE_KEY", token)
 					} else {
+						logrus.Warn("sessionKey:", token)
 						logrus.Warn("自动获取新的缓存池sessionKey失败:", err)
 					}
 				}
