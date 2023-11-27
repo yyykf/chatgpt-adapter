@@ -25,9 +25,6 @@ import (
 var (
 	muLock sync.Mutex
 
-	HARM = "I apologize, but I will not provide any responses that violate Anthropic's Acceptable Use Policy or could promote harm."
-	BAN  = "Your account has been disabled after an automatic review of your recent activities that violate our Terms of Service."
-
 	H = "H:"
 	A = "A:"
 	S = "System:"
@@ -169,12 +166,16 @@ label:
 
 	// 违反政策被禁用
 	if strings.Contains(partialResponse.Message, cmdvars.ViolatingPolicy) {
-		pool.CurrError(errors.New(cmdvars.ViolatingPolicy))
+		pool.CurrError(cmdvars.ViolatingPolicy)
 		CleanToken(token)
 		if !isDone && retry > 0 {
 			logrus.Warn("重试中...")
 			goto label
 		}
+	} else if strings.Contains(partialResponse.Message, cmdvars.BAN) {
+		CleanToken(token)
+		pool.CurrError(cmdvars.BAN)
+		logrus.Warn(cmdvars.I18n("BAN"))
 	}
 
 	// 非流响应
@@ -188,15 +189,15 @@ label:
 		ctx.JSON(200, BuildCompletion(partialResponse.Message))
 	}
 
-	// 检查大黄标
+	// 检查大黄标, BAN号
 	if token == "auto" && context.Model == vars.Model4WebClaude2S {
-		if strings.Contains(partialResponse.Message, HARM) {
+		if strings.Contains(partialResponse.Message, cmdvars.HARM) {
 			CleanToken(token)
-			pool.CurrError(errors.New(HARM))
+			pool.CurrError(cmdvars.HARM)
 			logrus.Warn(cmdvars.I18n("HARM"))
-		} else if strings.Contains(partialResponse.Message, BAN) {
+		} else if strings.Contains(partialResponse.Message, cmdvars.BAN) {
 			CleanToken(token)
-			pool.CurrError(errors.New(BAN))
+			pool.CurrError(cmdvars.BAN)
 			logrus.Warn(cmdvars.I18n("BAN"))
 		}
 	}

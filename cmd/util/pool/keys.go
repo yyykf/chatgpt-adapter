@@ -113,10 +113,14 @@ func GetKey() (string, error) {
 	}
 }
 
-func CurrError(err error) {
-	if err != nil && currIndex >= 0 {
-		Keys[currIndex].IsDie = true
-		Keys[currIndex].Error = err
+func CurrError(message string) {
+	if message != "" && currIndex >= 0 {
+		if message == "Exceeded completions limit" {
+			Keys[currIndex].IsDie = false
+		} else {
+			Keys[currIndex].IsDie = true
+		}
+		Keys[currIndex].Error = errors.New(message)
 	}
 }
 
@@ -142,7 +146,9 @@ func getLocalKey() (string, error) {
 		}
 		// 测试是否可用
 		if err = TestMessage(key.Token); err != nil {
-			key.IsDie = true
+			if !strings.Contains(err.Error(), "Exceeded completions limit") {
+				key.IsDie = true
+			}
 			key.Error = err
 			continue
 		} else {
@@ -230,6 +236,12 @@ func TestMessage(token string) error {
 		if !ok {
 			if finalMessage == cmdvars.ViolatingPolicy {
 				return errors.New(cmdvars.ViolatingPolicy)
+			}
+			if strings.Contains(finalMessage, cmdvars.BAN) {
+				return errors.New(cmdvars.BAN)
+			}
+			if strings.Contains(finalMessage, cmdvars.HARM) {
+				return errors.New(cmdvars.HARM)
 			}
 			return nil
 		}
