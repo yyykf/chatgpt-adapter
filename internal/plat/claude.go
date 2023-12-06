@@ -16,7 +16,7 @@ type ClaudeBot struct {
 
 func NewClaudeBot() types.Bot {
 	return &ClaudeBot{
-		sessions: make(map[string]clTypes.Chat, 0),
+		sessions: make(map[string]clTypes.Chat),
 	}
 }
 
@@ -132,10 +132,10 @@ func (bot *ClaudeBot) Remove(id string) bool {
 		}
 		delete(bot.sessions, id)
 	}
-	for key, se := range bot.sessions {
+	for key, session := range bot.sessions {
 		if strings.HasPrefix(id+"$", key) {
 			if deleteHistory {
-				go se.Delete()
+				go session.Delete()
 			}
 			delete(bot.sessions, key)
 		}

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	token  = "auto"
+	token  = "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"
 	preset = ``
 )
 

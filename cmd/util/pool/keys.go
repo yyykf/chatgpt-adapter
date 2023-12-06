@@ -63,7 +63,8 @@ func init() {
 				// 删除
 				if len(Keys) > 0 {
 					for index, key := range Keys {
-						if key.IsDie {
+						kLen := len(Keys) - 1
+						if kLen > kLen && key.IsDie {
 							logrus.Warn("发现缓存池sessionKey已失效: " + key.Token)
 							logrus.Warn("删除失效的缓存池sessionKey: ", key.Error)
 							Keys = append(Keys[:index], Keys[index+1:]...)
