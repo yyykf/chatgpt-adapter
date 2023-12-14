@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	cmdtypes "github.com/bincooo/chatgpt-adapter/cmd/types"
 	cmdvars "github.com/bincooo/chatgpt-adapter/cmd/vars"
@@ -393,14 +394,15 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 
 		// 填充废料
 		if s.Padding && (r.Model == "claude-2.0" || r.Model == "claude-2") {
-			gPadding := cmdvars.GlobalPadding
-			if gPadding == "" {
-				gPadding = piles[rand.Intn(len(piles))]
-			}
-			c := (cmdvars.GlobalPaddingSize - len(result)) / len(gPadding)
 			cachePadding := ""
-			for idx := 0; idx < c; idx++ {
-				cachePadding += gPadding
+
+			if cmdvars.GlobalPadding == "" {
+				cachePadding = padtxt(cmdvars.GlobalPaddingSize)
+			} else {
+				c := (cmdvars.GlobalPaddingSize - len(result)) / len(cmdvars.GlobalPadding)
+				for idx := 0; idx < c; idx++ {
+					cachePadding += cmdvars.GlobalPadding
+				}
 			}
 
 			if cachePadding != "" {
@@ -409,6 +411,23 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 		}
 		return result, s, nil
 	}
+}
+
+func padtxt(length int) string {
+	if length == 0 {
+		return ""
+	}
+
+	s := "abcdefghijklmnopqrstuvwsyz0123456789!@#$%^&*()_+,.?/\\"
+	bytes := make([]byte, length)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for idx := 0; idx < length; idx++ {
+		pos := r.Intn(len(s))
+		u := s[pos]
+		bytes[idx] = u
+	}
+	return string(bytes)
 }
 
 // claude-2.0 stream 流读取数据转换处理
