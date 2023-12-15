@@ -232,6 +232,14 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 	return func(rChan any) func(*types.CacheBuffer) error {
 		matchers := utils.GlobalMatchers()
+		// 换行符处理
+		matchers = append(matchers, &types.StringMatcher{
+			Find: `\n`,
+			H: func(index int, content string) (state int, result string) {
+				return types.MAT_MATCHED, strings.Replace(content, `\n`, "\n", -1)
+			},
+		})
+
 		partialResponse := rChan.(*http.Response)
 
 		reader := bufio.NewReader(partialResponse.Body)
