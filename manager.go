@@ -87,6 +87,8 @@ func (mgr *CommonBotManager) makeBot(bot string) error {
 		mgr.Add(bot, plat.NewClaudeBot())
 	case vars.Bing:
 		mgr.Add(bot, plat.NewBingBot())
+	case vars.Gemini:
+		mgr.Add(bot, plat.NewGeminiBot())
 	default:
 		logrus.Error("未定义的AI类型：" + bot)
 	}

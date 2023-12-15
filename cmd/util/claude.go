@@ -397,7 +397,7 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 			cachePadding := ""
 
 			if cmdvars.GlobalPadding == "" {
-				cachePadding = padtxt(cmdvars.GlobalPaddingSize)
+				cachePadding = padtxt(cmdvars.GlobalPaddingSize - len(result))
 			} else {
 				c := (cmdvars.GlobalPaddingSize - len(result)) / len(cmdvars.GlobalPadding)
 				for idx := 0; idx < c; idx++ {

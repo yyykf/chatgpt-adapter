@@ -176,8 +176,9 @@ func index(ctx *gin.Context) {
 func models(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
 		"data": []gin.H{
-			{"id": "claude-2.0"},
+			{"id": "claude-2.1"},
 			{"id": "BingAI"},
+			{"id": "Gemini"},
 		},
 	})
 }
@@ -222,6 +223,8 @@ func completions(ctx *gin.Context) {
 		cmdutil.DoClaudeComplete(ctx, token, &r)
 	case "BingAI":
 		cmdutil.DoBingAIComplete(ctx, token, &r)
+	case "Gemini":
+		cmdutil.DoGeminiAIComplete(ctx, token, &r)
 	default:
 		cmdutil.ResponseError(ctx, "未知的AI类型：`"+r.Model+"`", r.Stream)
 	}
