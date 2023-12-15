@@ -160,51 +160,16 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 		}
 	}
 
-	description := ""
-	if l := len(messages); l > vars.BingMaxMessage-2 {
-		mergeMessages := messages[0 : l-(vars.BingMaxMessage-4)]
-
-		for _, item := range mergeMessages {
-			switch item["author"] {
-			case "user":
-				description += "Human：" + item["text"] + "\n\n"
-			case "bot":
-				description += "Assistant：" + item["text"] + "\n\n"
-			}
-		}
-
-		latelyMessages := messages[l-(vars.BingMaxMessage-4):]
-		latelyMessages[0]["text"] = "请改为从此页面回答。\n[使用此页面的对话作为我们之前的对话记录进行后续交流]\n\n" + latelyMessages[0]["text"]
-		messages = append([]store.Kv{
-			{
-				"author":      "user",
-				"description": description,
-				"contextType": "WebPage",
-				"messageType": "Context",
-				"sourceName":  "history.md",
-				"sourceUrl":   "file:///tmp/history.md",
-				"privacy":     "Internal",
-			},
-		}, latelyMessages...)
-	}
-
 	store.CacheMessages(id, messages)
 	if message == "" {
 		message = "continue"
 	}
 
-	ms := messages
-	if len(description) > 0 {
-		ms = messages[1:]
-	}
-
 	fmt.Println("-----------------------Response-----------------\n",
 		"-----------------------「 预设区 」-----------------------\n",
 		preset,
-		"\n\n\n-----------------------「 history.md 」-----------------------\n",
-		description,
 		"\n\n\n-----------------------「 对话记录 」-----------------------\n",
-		ms,
+		messages,
 		"\n\n\n-----------------------「 当前对话 」-----------------------\n",
 		message,
 		"\n--------------------END-------------------")
@@ -228,7 +193,7 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 	}, nil
 }
 
-// BingAI stream 流读取数据转换处理
+// gemini stream 流读取数据转换处理
 func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 	return func(rChan any) func(*types.CacheBuffer) error {
 		matchers := utils.GlobalMatchers()
