@@ -6,7 +6,7 @@
 
 ### ai适配器
 
-* 该库集成了openai-api、openai-web、claude for slack、bing 多款AI的对接接口
+* 该库集成了openai-api、openai-web、claude for slack、bing、gemini 多款AI的对接接口
 * 集成预设处理器，可对预设模版预处理
 
 略...
