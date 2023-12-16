@@ -6,7 +6,7 @@
 
 ### ai adaptor
 
-* The library integrates `openai-api `, `openai-web`, `claude for slack`, `bing` and many AI docking interfaces
+* The library integrates `openai-api `, `openai-web`, `claude for slack`, `bing`, `gemini` and many AI docking interfaces
 * Integrated preset processor for preprocessing preset templates
 
 More...
