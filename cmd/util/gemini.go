@@ -204,6 +204,27 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 				return types.MAT_MATCHED, strings.Replace(content, `\n`, "\n", -1)
 			},
 		})
+		// <符处理
+		matchers = append(matchers, &types.StringMatcher{
+			Find: `\u003c`,
+			H: func(index int, content string) (state int, result string) {
+				return types.MAT_MATCHED, strings.Replace(content, `\u003c`, "<", -1)
+			},
+		})
+		// >符处理
+		matchers = append(matchers, &types.StringMatcher{
+			Find: `\u003e`,
+			H: func(index int, content string) (state int, result string) {
+				return types.MAT_MATCHED, strings.Replace(content, `\u003e`, ">", -1)
+			},
+		})
+		// "符处理
+		matchers = append(matchers, &types.StringMatcher{
+			Find: `\"`,
+			H: func(index int, content string) (state int, result string) {
+				return types.MAT_MATCHED, strings.Replace(content, `\"`, "\"", -1)
+			},
+		})
 
 		partialResponse := rChan.(*http.Response)
 
