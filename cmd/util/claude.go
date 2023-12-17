@@ -251,7 +251,7 @@ func createClaudeConversation(token string, r *cmdtypes.RequestDTO, IsClose func
 		chain string
 	)
 	switch r.Model {
-	case "claude-2.0", "claude-2":
+	case "claude-2.1":
 		id = "claude-" + uuid.NewString()
 		bot = vars.Claude
 		model = vars.Model4WebClaude2S
@@ -393,7 +393,7 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 		}
 
 		// 填充废料
-		if s.Padding && (r.Model == "claude-2.0" || r.Model == "claude-2") {
+		if s.Padding && r.Model == "claude-2.1" {
 			cachePadding := ""
 
 			if cmdvars.GlobalPadding == "" {
@@ -414,7 +414,7 @@ func trimClaudeMessage(r *cmdtypes.RequestDTO) (string, schema, error) {
 }
 
 func padtxt(length int) string {
-	if length == 0 {
+	if length <= 0 {
 		return ""
 	}
 

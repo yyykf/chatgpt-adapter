@@ -57,7 +57,7 @@ func postRef(r *cmdtypes.RequestDTO) {
 
 		if len(slice) > 0 {
 			prefix := "System: "
-			if r.Model != "claude-2.0" {
+			if r.Model != "claude-2.1" {
 				prefix = ""
 			}
 			r.Messages = append(r.Messages[:messageL-pos], append([]map[string]string{

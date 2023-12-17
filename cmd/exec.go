@@ -218,8 +218,7 @@ func completions(ctx *gin.Context) {
 	}
 
 	switch r.Model {
-	case "claude-2.0", "claude-2",
-		"claude-1.0", "claude-1.2", "claude-1.3":
+	case "claude-2.1":
 		cmdutil.DoClaudeComplete(ctx, token, &r)
 	case "BingAI":
 		cmdutil.DoBingAIComplete(ctx, token, &r)
