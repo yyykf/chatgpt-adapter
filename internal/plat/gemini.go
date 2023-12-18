@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"github.com/bincooo/chatgpt-adapter/store"
 	"github.com/bincooo/chatgpt-adapter/types"
 	"github.com/bincooo/chatgpt-adapter/vars"
@@ -33,7 +34,7 @@ func (bot GeminiBot) Reply(ctx types.ConversationContext) chan types.PartialResp
 // 构建请求，返回响应
 func (GeminiBot) build(message chan types.PartialResponse, ctx types.ConversationContext) *http.Response {
 	const (
-		burl = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:streamGenerateContent?key="
+		burl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent?key="
 	)
 	messages := store.GetMessages(ctx.Id)
 	pMessages := make([]map[string]any, 0)
@@ -78,22 +79,22 @@ func (GeminiBot) build(message chan types.PartialResponse, ctx types.Conversatio
 			"maxOutputTokens": 2048,
 		},
 		"safetySettings": []map[string]string{
-			{
-				"category":  "HARM_CATEGORY_HARASSMENT",
-				"threshold": "BLOCK_LOW_AND_ABOVE",
-			},
-			{
-				"category":  "HARM_CATEGORY_HATE_SPEECH",
-				"threshold": "BLOCK_LOW_AND_ABOVE",
-			},
-			{
-				"category":  "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-				"threshold": "BLOCK_LOW_AND_ABOVE",
-			},
-			{
-				"category":  "HARM_CATEGORY_DANGEROUS_CONTENT",
-				"threshold": "BLOCK_LOW_AND_ABOVE",
-			},
+			//{
+			//	"category":  "HARM_CATEGORY_HARASSMENT",
+			//	"threshold": "BLOCK_LOW_AND_ABOVE",
+			//},
+			//{
+			//	"category":  "HARM_CATEGORY_HATE_SPEECH",
+			//	"threshold": "BLOCK_LOW_AND_ABOVE",
+			//},
+			//{
+			//	"category":  "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+			//	"threshold": "BLOCK_LOW_AND_ABOVE",
+			//},
+			//{
+			//	"category":  "HARM_CATEGORY_DANGEROUS_CONTENT",
+			//	"threshold": "BLOCK_LOW_AND_ABOVE",
+			//},
 		},
 	})
 	if err != nil {
@@ -148,6 +149,7 @@ func (bot GeminiBot) resolve(partialResponse *http.Response, message chan types.
 		reader := bufio.NewReader(partialResponse.Body)
 		var original []byte
 		var textBlock = []byte(`"text": "`)
+		isError := false
 
 		r = types.CacheBuffer{
 			H: func(self *types.CacheBuffer) error {
@@ -159,6 +161,11 @@ func (bot GeminiBot) resolve(partialResponse *http.Response, message chan types.
 
 				if err == io.EOF {
 					self.Closed = true
+					if isError {
+						message <- types.PartialResponse{
+							Error: errors.New(string(original)),
+						}
+					}
 					return nil
 				}
 
@@ -174,12 +181,21 @@ func (bot GeminiBot) resolve(partialResponse *http.Response, message chan types.
 					return nil
 				}
 
+				if isError {
+					return nil
+				}
+
 				dst := make([]byte, len(original))
 				copy(dst, original)
-				original = make([]byte, 0)
+				if bytes.Contains(dst, []byte(`"error":`)) {
+					isError = true
+					return nil
+				}
 				if !bytes.Contains(dst, textBlock) {
 					return nil
 				}
+
+				original = make([]byte, 0)
 				index := bytes.Index(dst, textBlock)
 				self.Cache += string(dst[index+len(textBlock) : len(dst)-1])
 				return nil

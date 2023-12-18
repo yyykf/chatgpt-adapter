@@ -221,24 +221,24 @@ func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
 		}
 	}
 
-	if cmdvars.EnablePool && pool.IsLocal {
-
-		shortVal := func(val string) string {
-			return val[:5] + "***" + val[len(val)-10:]
-		}
-
-		markdown := "SESSION KEY使用如下：\n| KEY | DIE | ERROR |\n| ----------- | ----------- | ----------- |\n"
-		for _, key := range pool.Keys {
-			err := ""
-			if key.Error != nil {
-				err = key.Error.Error()
-			}
-			markdown += "| " + shortVal(key.Token) + " | " + strconv.FormatBool(key.IsDie) + " | " + err + " |\n"
-		}
-		SSEString(ctx, markdown)
-		return true
+	if !cmdvars.EnablePool {
+		return false
 	}
-	return false
+
+	shortVal := func(val string) string {
+		return val[:5] + "***" + val[len(val)-10:]
+	}
+
+	markdown := "SESSION KEY使用如下：\n| KEY | DIE | ERROR |\n| ----------- | ----------- | ----------- |\n"
+	for _, key := range pool.Keys {
+		err := ""
+		if key.Error != nil {
+			err = key.Error.Error()
+		}
+		markdown += "| " + shortVal(key.Token) + " | " + strconv.FormatBool(key.IsDie) + " | " + err + " |\n"
+	}
+	SSEString(ctx, markdown)
+	return true
 }
 
 // 构建claude-2.0上下文

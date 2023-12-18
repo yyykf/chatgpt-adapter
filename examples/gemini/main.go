@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	token  = "AIxxx"
+	token  = "AIzaxxx"
 	preset = ``
 )
 
@@ -78,7 +78,7 @@ func ContextLmt(id string) types.ConversationContext {
 		//BaseURL: "https://edge.zjcs666.icu",
 		Proxy:       "http://127.0.0.1:7890",
 		Model:       vars.Gemini,
-		Temperature: .8,
+		Temperature: .9,
 		//H:     Handle,
 	}
 }
