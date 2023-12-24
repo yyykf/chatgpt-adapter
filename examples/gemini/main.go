@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/bincooo/chatgpt-adapter"
+	"github.com/bincooo/chatgpt-adapter/store"
 	"github.com/bincooo/chatgpt-adapter/types"
 	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/sirupsen/logrus"
@@ -37,6 +38,7 @@ func main() {
 		fmt.Println("Bot：")
 		handle(context, manager)
 		time.Sleep(time.Second)
+		store.CacheMessages("1008611", pMessages)
 	}
 }
 
@@ -48,6 +50,7 @@ func handle(context types.ConversationContext, manager types.BotManager) {
 
 		if partialResponse.Error != nil {
 			logrus.Error(partialResponse.Error)
+			return
 		}
 
 		if partialResponse.Status == vars.Closed {
