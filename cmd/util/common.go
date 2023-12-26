@@ -28,6 +28,214 @@ func CleanToken(token string) {
 	}
 }
 
+type XmlNode struct {
+	index   int
+	end     int
+	tag     string
+	t       int
+	content string
+	attr    map[string]any
+	parent  *XmlNode
+	child   *XmlNode
+}
+
+const (
+	XML_TYPE_S = iota
+	XML_TYPE_X
+	XML_TYPE_Ig
+)
+
+type XmlParser struct {
+	// parse(value string) []*XmlNode
+}
+
+func NewParser() *XmlParser {
+	return new(XmlParser)
+}
+
+// xml解析的简单实现
+func (XmlParser) Parse(value string) []*XmlNode {
+	messageL := len(value)
+	if messageL == 0 {
+		return nil
+	}
+
+	search := func(content string, index int, ch uint8) int {
+		contentL := len(content)
+		for i := index + 1; i < contentL; i++ {
+			if content[i] == ch {
+				return i
+			}
+		}
+		return -1
+	}
+
+	searchStr := func(content string, index int, s string) int {
+		l := len(s)
+		contentL := len(content)
+		for i := index + 1; i < contentL; i++ {
+			if i+l >= contentL {
+				return -1
+			}
+			if content[i:i+l] == s {
+				return i
+			}
+		}
+		return -1
+	}
+
+	next := func(content string, index int, ch uint8) bool {
+		contentL := len(content)
+		if index+1 >= contentL {
+			return false
+		}
+		return content[index+1] == ch
+	}
+
+	nextStr := func(content string, index int, s string) bool {
+		contentL := len(content)
+		if index+1+len(s) >= contentL {
+			return false
+		}
+		return content[index+1:index+1+len(s)] == s
+	}
+
+	parseAttr := func(slice []string) map[string]any {
+		attr := make(map[string]any)
+		for _, it := range slice {
+			n := search(it, 0, '=')
+			if n <= 0 {
+				if len(it) > 0 && it != "=" {
+					attr[it] = true
+				}
+				continue
+			}
+
+			if n == len(it)-1 {
+				continue
+			}
+
+			v1, err := strconv.Atoi(it[n+1:])
+			if err == nil {
+				attr[it[:n]] = v1
+				continue
+			}
+
+			v2, err := strconv.ParseFloat(it[n+1:], 10)
+			if err == nil {
+				attr[it[:n]] = v2
+				continue
+			}
+
+			v3, err := strconv.ParseBool(it[n+1:])
+			if err == nil {
+				attr[it[:n]] = v3
+				continue
+			}
+
+			if it[n+1] == '"' && it[len(it)-1] == '"' {
+				attr[it[:n]] = it[n+2 : len(it)-1]
+			}
+		}
+		return attr
+	}
+
+	content := value
+	contentL := len(content)
+	slice := make([]*XmlNode, 0)
+	var curr *XmlNode = nil
+	for i := 0; i < contentL; i++ {
+		if content[i] == '<' { // 开始标记
+			// =========================================================
+			if next(content, i, '/') { // 结束标记
+				n := search(content, i, '>')
+				if n == -1 { // 找不到
+					if curr == nil {
+						break
+					}
+					if curr.parent != nil {
+						curr = curr.parent
+					} else {
+						slice = Remove(slice, curr)
+					}
+
+					curr = nil
+					break
+				}
+				if curr == nil {
+					i = n
+					continue
+				}
+
+				split := strings.Split(curr.tag, " ")
+				if split[0] == content[i+2:n] {
+					step := 2 + len(curr.tag)
+					curr.t = XML_TYPE_X
+					curr.end = n + 1
+					curr.content = content[curr.index+step : curr.end-len(split[0])-3]
+					// 解析xml参数
+					if len(split) > 1 {
+						curr.tag = split[0]
+						curr.attr = parseAttr(split[1:])
+					}
+					curr = curr.parent
+					i = n
+				}
+
+				// =========================================================
+			} else if nextStr(content, i, "!--") { // 是否是注释 <!-- xxx -->
+				n := searchStr(content, i+3, "-->")
+				if n < 0 {
+					i += 2
+					continue
+				}
+				if curr == nil {
+					slice = append(slice, &XmlNode{index: i, end: n + 3, content: content[i : n+3], t: XML_TYPE_Ig})
+				} else {
+					curr.child = &XmlNode{index: i, content: content[i : n+3], t: XML_TYPE_Ig, parent: curr}
+					curr = curr.child
+				}
+				i = n + 2
+
+				// =========================================================
+			} else { // 新的标记
+				n := search(content, i, '>')
+				if n == -1 {
+					break
+				}
+
+				if curr == nil {
+					curr = &XmlNode{index: i, tag: content[i+1 : n], t: XML_TYPE_S}
+					slice = append(slice, curr)
+				} else {
+					curr.child = &XmlNode{index: i, tag: content[i+1 : n], t: XML_TYPE_S, parent: curr}
+					curr = curr.child
+				}
+				i = n
+			}
+		}
+	}
+
+	// =========================================================
+	// 填充前后字符
+	if l := len(slice); l > 0 {
+		n := slice[l-1]
+		if n.end < contentL {
+			slice = append(slice, &XmlNode{index: n.end, end: contentL, tag: "", t: XML_TYPE_S, content: content[n.end:contentL]})
+		}
+		n = slice[0]
+		if n.index > 0 {
+			slice = append([]*XmlNode{
+				{index: 0, end: n.index + 1, tag: "", t: XML_TYPE_S, content: content[0:n.index]},
+			}, slice...)
+		}
+	} else {
+		slice = append(slice, &XmlNode{index: 0, end: contentL, tag: "", t: XML_TYPE_S, content: content})
+	}
+
+	return slice
+}
+
 // 将知识库的内容往上挪
 func postRef(r *cmdtypes.RequestDTO) {
 	if messageL := len(r.Messages); messageL > 2 {
@@ -133,6 +341,106 @@ func BuildCompletion(message string) gin.H {
 	return completion
 }
 
+// xml标记实现，用于拓展不同平台未实现的编排功能
+// notes by:  https://rentry.org/teralomaniac_clewd_ReleaseNotes.
+func XmlPlot(r *cmdtypes.RequestDTO) {
+	parser := NewParser()
+	// 深度插入, i 是深度索引，v 是插入内容
+	deepSlice := make([]map[uint8]string, 0)
+	// 正则替换, i 替换次数，v 是正则内容
+	regexSlice := make([]map[uint8]any, 0)
+	messageL := len(r.Messages)
+	for _, msg := range r.Messages {
+		content := msg["content"]
+		nodes := parser.Parse(content)
+		for _, node := range nodes {
+			// 注释内容删除
+			if node.t == XML_TYPE_Ig {
+				ctx := content[node.index:node.end]
+				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+			}
+
+			// 自由深度插入
+			if node.t == XML_TYPE_X && node.tag[0] == '@' {
+				compile, _ := regexp.Compile(`@-*\d+`)
+				if compile.MatchString(node.tag) {
+					deepSlice = append(deepSlice, map[uint8]string{'i': node.tag[1:], 'v': node.content})
+					//msg["content"] = content[:node.index] + content[node.end:]
+					ctx := content[node.index:node.end]
+					msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+				}
+			}
+
+			// 正则替换
+			if node.t == XML_TYPE_X && node.tag == "regex" {
+				count := 0 // 默认0，替换所有
+				if other, ok := node.attr["other"]; ok {
+					if idx, k := other.(int); k {
+						count = idx
+					}
+				}
+				regexSlice = append(regexSlice, map[uint8]any{'i': count, 'v': node.content})
+				// msg["content"] = content[:node.index] + content[node.end:]
+				ctx := content[node.index:node.end]
+				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+			}
+		}
+	}
+
+	// 深度插入的实现
+	for _, d := range deepSlice {
+		i, _ := strconv.Atoi(d['i'])
+		if messageL-1 < Abs(i) {
+			continue
+		}
+
+		if i >= 0 {
+			// 正插
+			r.Messages[i]["content"] += `\n\n` + d['v']
+		} else {
+			// 反插
+			r.Messages[messageL-1+i]["content"] += `\n\n` + d['v']
+		}
+	}
+
+	// 正则替换的实现
+	for _, reg := range regexSlice {
+		i := reg['i'].(int)
+		split := strings.Split(reg['v'].(string), ":")
+		if len(split) < 2 {
+			continue
+		}
+		before := strings.TrimSpace(split[0])
+		after := strings.TrimSpace(split[1])
+
+		if before == "" {
+			continue
+		}
+
+		compile := regexp.MustCompile(before)
+		if i == 0 { // 默认0，替换所有
+			for _, msg := range r.Messages {
+				content := msg["content"]
+				compile.ReplaceAllString(content, after)
+				msg["content"] = content
+			}
+		} else {
+			for _, msg := range r.Messages {
+				if i <= 0 {
+					break
+				}
+				content := msg["content"]
+				for _, match := range compile.FindStringSubmatch(content) {
+					content = strings.Replace(content, match, after, -1)
+					i--
+				}
+				msg["content"] = content
+			}
+		}
+	}
+}
+
+// 删除元素
 func Remove[T comparable](slice []T, t T) []T {
 	return RemoveFor(slice, func(item T) bool {
 		return item == t
@@ -230,4 +538,12 @@ func LoadEnvInt(key string, defaultValue int) int {
 		os.Exit(-1)
 	}
 	return result
+}
+
+// 取绝对值
+func Abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }

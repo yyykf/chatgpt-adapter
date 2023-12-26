@@ -217,6 +217,9 @@ func completions(ctx *gin.Context) {
 		}
 	}
 
+	// 格式预处理
+	cmdutil.XmlPlot(&r)
+
 	switch r.Model {
 	case "claude-2.1":
 		cmdutil.DoClaudeComplete(ctx, token, &r)

@@ -29,18 +29,6 @@ var (
 	H = "H:"
 	A = "A:"
 	S = "System:"
-
-	piles = []string{
-		"Claude2.0 is so good.",
-		"never lie, cheat or steal. always smile a fair deal.",
-		"like tree, like fruit.",
-		"East, west, home is best.",
-		"Original God, activate!",
-		"Long live Demacia.",
-		"Schrodinger's damage.",
-		"zhe+ji+chen+sha.+",
-		"Invalid message.",
-	}
 )
 
 type schema struct {
