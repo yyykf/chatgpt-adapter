@@ -44,7 +44,7 @@ type schema struct {
 func DoClaudeComplete(ctx *gin.Context, token string, r *cmdtypes.RequestDTO) {
 
 	// ping 打印本地池的可用情况
-	if pingRef(ctx, r) {
+	if pingRef(ctx, r) != 0 {
 		return
 	}
 
@@ -192,25 +192,43 @@ label:
 	}
 }
 
-// 如果是ping指令，打印本地池的使用情况
-func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
+// 如果是ping指令，打印本地池的使用情况, 1: ping 2: reset 0: 非指令
+func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) int {
 	messageL := len(r.Messages)
+	other := 0
 	if messageL == 0 {
-		return false
+		return other
 	}
 	// 找最后一条用户发言
 	for i := messageL - 1; i >= 0; i-- {
 		message := r.Messages[i]
 		if message["role"] == "user" {
-			if message["content"] != "/ping" {
-				return false
+			if message["content"] == "/ping" {
+				other = 1
+			}
+
+			if message["content"] == "/reset" {
+				other = 2
+			}
+
+			if other == 0 {
+				return other
 			}
 			break
 		}
 	}
 
 	if !cmdvars.EnablePool {
-		return false
+		return other
+	}
+
+	if other == 2 {
+		for _, key := range pool.Keys {
+			key.IsDie = false
+			key.Error = nil
+		}
+		SSEString(ctx, "重置指令已执行")
+		return other
 	}
 
 	shortVal := func(val string) string {
@@ -226,7 +244,7 @@ func pingRef(ctx *gin.Context, r *cmdtypes.RequestDTO) bool {
 		markdown += "| " + shortVal(key.Token) + " | " + strconv.FormatBool(key.IsDie) + " | " + err + " |\n"
 	}
 	SSEString(ctx, markdown)
-	return true
+	return other
 }
 
 // 构建claude-2.0上下文
