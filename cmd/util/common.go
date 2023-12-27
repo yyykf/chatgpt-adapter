@@ -36,7 +36,14 @@ type XmlNode struct {
 	content string
 	attr    map[string]any
 	parent  *XmlNode
-	child   *XmlNode
+	child   []*XmlNode
+}
+
+type cacheSlice struct {
+	// 深度插入, i 是深度索引，v 是插入内容
+	deepSlice []map[uint8]string
+	// 正则替换, i 替换次数，v 是正则内容
+	regexSlice []map[uint8]any
 }
 
 const (
@@ -47,14 +54,15 @@ const (
 
 type XmlParser struct {
 	// parse(value string) []*XmlNode
+	whiteList []string
 }
 
-func NewParser() *XmlParser {
-	return new(XmlParser)
+func NewParser(whiteList []string) *XmlParser {
+	return &XmlParser{whiteList}
 }
 
 // xml解析的简单实现
-func (XmlParser) Parse(value string) []*XmlNode {
+func (xml XmlParser) Parse(value string) []*XmlNode {
 	messageL := len(value)
 	if messageL == 0 {
 		return nil
@@ -142,7 +150,9 @@ func (XmlParser) Parse(value string) []*XmlNode {
 
 	content := value
 	contentL := len(content)
+	root := make([]*XmlNode, 0)
 	slice := make([]*XmlNode, 0)
+
 	var curr *XmlNode = nil
 	for i := 0; i < contentL; i++ {
 		if content[i] == '<' { // 开始标记
@@ -155,6 +165,7 @@ func (XmlParser) Parse(value string) []*XmlNode {
 					}
 					if curr.parent != nil {
 						curr = curr.parent
+						slice = curr.child
 					} else {
 						slice = Remove(slice, curr)
 					}
@@ -180,6 +191,13 @@ func (XmlParser) Parse(value string) []*XmlNode {
 					}
 					curr = curr.parent
 					i = n
+				} else if curr.tag == content[i+2:n] {
+					step := 2 + len(curr.tag)
+					curr.t = XML_TYPE_X
+					curr.end = n + 1
+					curr.content = content[curr.index+step : curr.end-len(curr.tag)-3]
+					curr = curr.parent
+					i = n
 				}
 
 				// =========================================================
@@ -190,10 +208,10 @@ func (XmlParser) Parse(value string) []*XmlNode {
 					continue
 				}
 				if curr == nil {
-					slice = append(slice, &XmlNode{index: i, end: n + 3, content: content[i : n+3], t: XML_TYPE_Ig})
+					slice = append(slice, &XmlNode{index: i, end: n + 3, content: content[i : n+3], t: XML_TYPE_Ig, child: slice})
 				} else {
-					curr.child = &XmlNode{index: i, content: content[i : n+3], t: XML_TYPE_Ig, parent: curr}
-					curr = curr.child
+					//curr.child = &XmlNode{index: i, content: content[i : n+3], t: XML_TYPE_Ig, parent: curr}
+					//curr = curr.child
 				}
 				i = n + 2
 
@@ -204,12 +222,33 @@ func (XmlParser) Parse(value string) []*XmlNode {
 					break
 				}
 
+				tag := content[i+1 : n]
+				if !ContainFor(xml.whiteList, func(item string) bool {
+					if strings.HasPrefix(item, "reg:") {
+						compile := regexp.MustCompile(item[4:])
+						return compile.MatchString(tag)
+					}
+					return item == tag
+				}) {
+					i = n
+					continue
+				}
 				if curr == nil {
-					curr = &XmlNode{index: i, tag: content[i+1 : n], t: XML_TYPE_S}
+					curr = &XmlNode{index: i, tag: tag, t: XML_TYPE_S}
 					slice = append(slice, curr)
+					if curr.parent == nil {
+						root = slice
+					}
 				} else {
-					curr.child = &XmlNode{index: i, tag: content[i+1 : n], t: XML_TYPE_S, parent: curr}
-					curr = curr.child
+					node := &XmlNode{index: i, tag: tag, t: XML_TYPE_S, parent: curr}
+					if curr.child == nil {
+						curr.child = append([]*XmlNode{}, node)
+					} else {
+						curr.child = append(curr.child, node)
+					}
+
+					slice = curr.child
+					curr = node
 				}
 				i = n
 			}
@@ -218,22 +257,22 @@ func (XmlParser) Parse(value string) []*XmlNode {
 
 	// =========================================================
 	// 填充前后字符
-	if l := len(slice); l > 0 {
-		n := slice[l-1]
+	if l := len(root); l > 0 {
+		n := root[l-1]
 		if n.end < contentL {
-			slice = append(slice, &XmlNode{index: n.end, end: contentL, tag: "", t: XML_TYPE_S, content: content[n.end:contentL]})
+			root = append(root, &XmlNode{index: n.end, end: contentL, tag: "", t: XML_TYPE_S, content: content[n.end:contentL]})
 		}
-		n = slice[0]
+		n = root[0]
 		if n.index > 0 {
-			slice = append([]*XmlNode{
+			root = append([]*XmlNode{
 				{index: 0, end: n.index + 1, tag: "", t: XML_TYPE_S, content: content[0:n.index]},
-			}, slice...)
+			}, root...)
 		}
 	} else {
-		slice = append(slice, &XmlNode{index: 0, end: contentL, tag: "", t: XML_TYPE_S, content: content})
+		root = append(root, &XmlNode{index: 0, end: contentL, tag: "", t: XML_TYPE_S, content: content})
 	}
 
-	return slice
+	return root
 }
 
 // 将知识库的内容往上挪
@@ -341,50 +380,63 @@ func BuildCompletion(message string) gin.H {
 	return completion
 }
 
+func handle(content string, msg map[string]string, nodes []*XmlNode, cache *cacheSlice) {
+	for _, node := range nodes {
+		needChild := true
+		// 注释内容删除
+		if node.t == XML_TYPE_Ig {
+			ctx := content[node.index:node.end]
+			msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+		}
+
+		// 自由深度插入
+		if node.t == XML_TYPE_X && node.tag[0] == '@' {
+			compile, _ := regexp.Compile(`@-*\d+`)
+			if compile.MatchString(node.tag) {
+				cache.deepSlice = append(cache.deepSlice, map[uint8]string{'i': node.tag[1:], 'v': node.content})
+				ctx := content[node.index:node.end]
+				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+				needChild = false
+			}
+		}
+
+		// 正则替换
+		if node.t == XML_TYPE_X && node.tag == "regex" {
+			count := 0 // 默认0，替换所有
+			if other, ok := node.attr["other"]; ok {
+				if idx, k := other.(int); k {
+					count = idx
+				}
+			}
+			cache.regexSlice = append(cache.regexSlice, map[uint8]any{'i': count, 'v': node.content})
+			ctx := content[node.index:node.end]
+			msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
+			needChild = false
+		}
+
+		if needChild && len(node.child) > 0 {
+			handle(content, msg, node.child, cache)
+		}
+	}
+}
+
 // xml标记实现，用于拓展不同平台未实现的编排功能
 // notes by:  https://rentry.org/teralomaniac_clewd_ReleaseNotes.
 func XmlPlot(r *cmdtypes.RequestDTO) {
-	parser := NewParser()
+	parser := NewParser([]string{"regex", `reg:@-*\d+`})
 	// 深度插入, i 是深度索引，v 是插入内容
 	deepSlice := make([]map[uint8]string, 0)
 	// 正则替换, i 替换次数，v 是正则内容
 	regexSlice := make([]map[uint8]any, 0)
 	messageL := len(r.Messages)
+
 	for _, msg := range r.Messages {
 		content := msg["content"]
 		nodes := parser.Parse(content)
-		for _, node := range nodes {
-			// 注释内容删除
-			if node.t == XML_TYPE_Ig {
-				ctx := content[node.index:node.end]
-				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
-			}
-
-			// 自由深度插入
-			if node.t == XML_TYPE_X && node.tag[0] == '@' {
-				compile, _ := regexp.Compile(`@-*\d+`)
-				if compile.MatchString(node.tag) {
-					deepSlice = append(deepSlice, map[uint8]string{'i': node.tag[1:], 'v': node.content})
-					//msg["content"] = content[:node.index] + content[node.end:]
-					ctx := content[node.index:node.end]
-					msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
-				}
-			}
-
-			// 正则替换
-			if node.t == XML_TYPE_X && node.tag == "regex" {
-				count := 0 // 默认0，替换所有
-				if other, ok := node.attr["other"]; ok {
-					if idx, k := other.(int); k {
-						count = idx
-					}
-				}
-				regexSlice = append(regexSlice, map[uint8]any{'i': count, 'v': node.content})
-				// msg["content"] = content[:node.index] + content[node.end:]
-				ctx := content[node.index:node.end]
-				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
-			}
-		}
+		cache := &cacheSlice{deepSlice, regexSlice}
+		handle(content, msg, nodes, cache)
+		deepSlice = cache.deepSlice
+		regexSlice = cache.regexSlice
 	}
 
 	// 深度插入的实现
