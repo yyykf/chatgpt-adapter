@@ -150,8 +150,12 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 
 	content := value
 	contentL := len(content)
-	root := make([]*XmlNode, 0)
-	slice := make([]*XmlNode, 0)
+	type skv struct {
+		s []*XmlNode
+		p *skv
+	}
+
+	slice := &skv{make([]*XmlNode, 0), nil}
 
 	var curr *XmlNode = nil
 	for i := 0; i < contentL; i++ {
@@ -163,18 +167,11 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 					if curr == nil {
 						break
 					}
-					if curr.parent != nil {
-						curr = curr.parent
-						slice = curr.child
-					} else {
-						slice = Remove(slice, curr)
-					}
-
 					curr = nil
 					break
 				}
+
 				if curr == nil {
-					i = n
 					continue
 				}
 
@@ -189,15 +186,17 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 						curr.tag = split[0]
 						curr.attr = parseAttr(split[1:])
 					}
-					curr = curr.parent
 					i = n
-				} else if curr.tag == content[i+2:n] {
-					step := 2 + len(curr.tag)
-					curr.t = XML_TYPE_X
-					curr.end = n + 1
-					curr.content = content[curr.index+step : curr.end-len(curr.tag)-3]
+
+					slice.s = append(slice.s, curr)
 					curr = curr.parent
-					i = n
+					if curr != nil {
+						curr.child = slice.s
+					}
+					if slice.p != nil {
+						slice = slice.p
+					}
+
 				}
 
 				// =========================================================
@@ -207,12 +206,8 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 					i += 2
 					continue
 				}
-				if curr == nil {
-					slice = append(slice, &XmlNode{index: i, end: n + 3, content: content[i : n+3], t: XML_TYPE_Ig, child: slice})
-				} else {
-					//curr.child = &XmlNode{index: i, content: content[i : n+3], t: XML_TYPE_Ig, parent: curr}
-					//curr = curr.child
-				}
+
+				slice.s = append(slice.s, &XmlNode{index: i, end: n + 3, content: content[i : n+3], t: XML_TYPE_Ig})
 				i = n + 2
 
 				// =========================================================
@@ -235,19 +230,11 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 				}
 				if curr == nil {
 					curr = &XmlNode{index: i, tag: tag, t: XML_TYPE_S}
-					slice = append(slice, curr)
-					if curr.parent == nil {
-						root = slice
-					}
+					//slice.s = append(slice.s, curr)
 				} else {
 					node := &XmlNode{index: i, tag: tag, t: XML_TYPE_S, parent: curr}
-					if curr.child == nil {
-						curr.child = append([]*XmlNode{}, node)
-					} else {
-						curr.child = append(curr.child, node)
-					}
-
-					slice = curr.child
+					slice = &skv{make([]*XmlNode, 0), slice}
+					//slice.s = append(slice.s, node)
 					curr = node
 				}
 				i = n
@@ -256,23 +243,7 @@ func (xml XmlParser) Parse(value string) []*XmlNode {
 	}
 
 	// =========================================================
-	// 填充前后字符
-	if l := len(root); l > 0 {
-		n := root[l-1]
-		if n.end < contentL {
-			root = append(root, &XmlNode{index: n.end, end: contentL, tag: "", t: XML_TYPE_S, content: content[n.end:contentL]})
-		}
-		n = root[0]
-		if n.index > 0 {
-			root = append([]*XmlNode{
-				{index: 0, end: n.index + 1, tag: "", t: XML_TYPE_S, content: content[0:n.index]},
-			}, root...)
-		}
-	} else {
-		root = append(root, &XmlNode{index: 0, end: contentL, tag: "", t: XML_TYPE_S, content: content})
-	}
-
-	return root
+	return slice.s
 }
 
 // 将知识库的内容往上挪
@@ -393,7 +364,15 @@ func handle(content string, msg map[string]string, nodes []*XmlNode, cache *cach
 		if node.t == XML_TYPE_X && node.tag[0] == '@' {
 			compile, _ := regexp.Compile(`@-*\d+`)
 			if compile.MatchString(node.tag) {
-				cache.deepSlice = append(cache.deepSlice, map[uint8]string{'i': node.tag[1:], 'v': node.content})
+				miss := "0"
+				if node.attr != nil {
+					if it, ok := node.attr["miss"]; ok {
+						if v, o := it.(bool); o && v {
+							miss = "1"
+						}
+					}
+				}
+				cache.deepSlice = append(cache.deepSlice, map[uint8]string{'i': node.tag[1:], 'v': node.content, 'o': miss})
 				ctx := content[node.index:node.end]
 				msg["content"] = strings.Replace(msg["content"], ctx, "", -1)
 				needChild = false
@@ -424,12 +403,13 @@ func handle(content string, msg map[string]string, nodes []*XmlNode, cache *cach
 // notes by:  https://rentry.org/teralomaniac_clewd_ReleaseNotes.
 func XmlPlot(r *cmdtypes.RequestDTO) {
 	parser := NewParser([]string{"regex", `reg:@-*\d+`})
-	// 深度插入, i 是深度索引，v 是插入内容
+	// 深度插入, i 是深度索引，v 是插入内容， o 是指令
 	deepSlice := make([]map[uint8]string, 0)
 	// 正则替换, i 替换次数，v 是正则内容
 	regexSlice := make([]map[uint8]any, 0)
 	messageL := len(r.Messages)
 
+retry:
 	for _, msg := range r.Messages {
 		content := msg["content"]
 		nodes := parser.Parse(content)
@@ -439,22 +419,7 @@ func XmlPlot(r *cmdtypes.RequestDTO) {
 		regexSlice = cache.regexSlice
 	}
 
-	// 深度插入的实现
-	for _, d := range deepSlice {
-		i, _ := strconv.Atoi(d['i'])
-		if messageL-1 < Abs(i) {
-			continue
-		}
-
-		if i >= 0 {
-			// 正插
-			r.Messages[i]["content"] += `\n\n` + d['v']
-		} else {
-			// 反插
-			r.Messages[messageL-1+i]["content"] += `\n\n` + d['v']
-		}
-	}
-
+	needRetry := false
 	// 正则替换的实现
 	for _, reg := range regexSlice {
 		i := reg['i'].(int)
@@ -463,7 +428,7 @@ func XmlPlot(r *cmdtypes.RequestDTO) {
 			continue
 		}
 		before := strings.TrimSpace(split[0])
-		after := strings.TrimSpace(split[1])
+		after := strings.TrimSpace(strings.Join(split[1:], ""))
 
 		if before == "" {
 			continue
@@ -473,8 +438,7 @@ func XmlPlot(r *cmdtypes.RequestDTO) {
 		if i == 0 { // 默认0，替换所有
 			for _, msg := range r.Messages {
 				content := msg["content"]
-				compile.ReplaceAllString(content, after)
-				msg["content"] = content
+				msg["content"] = compile.ReplaceAllString(content, after)
 			}
 		} else {
 			for _, msg := range r.Messages {
@@ -487,6 +451,37 @@ func XmlPlot(r *cmdtypes.RequestDTO) {
 					i--
 				}
 				msg["content"] = content
+			}
+		}
+
+		needRetry = true
+	}
+
+	if needRetry {
+		regexSlice = make([]map[uint8]any, 0)
+		goto retry
+	}
+
+	// 深度插入的实现
+	for _, d := range deepSlice {
+		i, _ := strconv.Atoi(d['i'])
+		if d['o'] == "1" && messageL-1 < Abs(i) {
+			continue
+		}
+
+		if i > 0 {
+			// 正插
+			if messageL-1 >= i {
+				r.Messages[i]["content"] += "\n\n" + d['v']
+			} else {
+				r.Messages[messageL-1]["content"] += "\n\n" + d['v']
+			}
+		} else {
+			// 反插
+			if messageL-1 >= -i {
+				r.Messages[messageL-1+i]["content"] += "\n\n" + d['v']
+			} else {
+				r.Messages[0]["content"] += "\n\n" + d['v']
 			}
 		}
 	}
