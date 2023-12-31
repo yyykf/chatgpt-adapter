@@ -17,6 +17,8 @@ import (
 type GeminiBot struct {
 }
 
+const GOOGLE_BASE = "https://generativelanguage.googleapis.com"
+
 func (bot GeminiBot) Reply(ctx types.ConversationContext) chan types.PartialResponse {
 	var message = make(chan types.PartialResponse)
 
@@ -39,9 +41,13 @@ func (bot GeminiBot) Reply(ctx types.ConversationContext) chan types.PartialResp
 
 // 构建请求，返回响应
 func (GeminiBot) build(ctx types.ConversationContext) (*http.Response, error) {
-	const (
-		burl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent?key="
+	var (
+		burl = GOOGLE_BASE + "/v1/models/gemini-pro:streamGenerateContent?key="
 	)
+	if ctx.BaseURL != "" {
+		burl = ctx.BaseURL + "/v1/models/gemini-pro:streamGenerateContent?key="
+	}
+
 	messages := store.GetMessages(ctx.Id)
 	pMessages := make([]map[string]any, 0)
 	for _, msg := range messages {

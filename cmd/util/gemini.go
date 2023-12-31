@@ -19,6 +19,12 @@ import (
 	"strings"
 )
 
+var GOOGLE_BASE = ""
+
+func init() {
+	GOOGLE_BASE = LoadEnvVar("GOOGLE_BASE", "")
+}
+
 func DoGeminiAIComplete(ctx *gin.Context, token string, r *cmdtypes.RequestDTO) {
 	conversationMapper := make(map[string]*types.ConversationContext)
 	isDone := false
@@ -181,7 +187,7 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 		Proxy:       cmdvars.Proxy,
 		Temperature: r.Temperature,
 		AppId:       appId,
-		BaseURL:     bingBaseURL,
+		BaseURL:     GOOGLE_BASE,
 		Chain:       chain,
 		H:           geminiHandle(IsClose),
 	}, nil
