@@ -138,7 +138,6 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 		appId   string
 		chain   string
 		message string
-		preset  string
 	)
 	switch r.Model {
 	case "Gemini":
@@ -148,9 +147,7 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 		return nil, errors.New(cmdvars.I18n("UNKNOWN_MODEL") + "`" + r.Model + "`")
 	}
 
-	var messages []store.Kv
-	messages, preset = geminiMessageConversion(r)
-
+	var messages = geminiMessageConversion(r)
 	for idx := len(messages) - 1; idx >= 0; idx-- {
 		item := messages[idx]
 		if item["author"] == "user" {
@@ -166,8 +163,6 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 	}
 
 	fmt.Println("-----------------------Response-----------------\n",
-		"-----------------------「 预设区 」-----------------------\n",
-		preset,
 		"\n\n\n-----------------------「 对话记录 」-----------------------\n",
 		messages,
 		"\n\n\n-----------------------「 当前对话 」-----------------------\n",
@@ -180,7 +175,6 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 	return &types.ConversationContext{
 		Id:          id,
 		Token:       token,
-		Preset:      preset,
 		Prompt:      message,
 		Bot:         bot,
 		Model:       model,
@@ -197,32 +191,26 @@ func createGeminiAIConversation(r *cmdtypes.RequestDTO, token string, IsClose fu
 func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 	return func(rChan any) func(*types.CacheBuffer) error {
 		matchers := utils.GlobalMatchers()
-		// 换行符处理
 		matchers = append(matchers, &types.StringMatcher{
-			Find: `\n`,
+			Find: `*`,
 			H: func(index int, content string) (state int, result string) {
-				return types.MAT_MATCHED, strings.Replace(content, `\n`, "\n", -1)
-			},
-		})
-		// <符处理
-		matchers = append(matchers, &types.StringMatcher{
-			Find: `\u003c`,
-			H: func(index int, content string) (state int, result string) {
-				return types.MAT_MATCHED, strings.Replace(content, `\u003c`, "<", -1)
-			},
-		})
-		// >符处理
-		matchers = append(matchers, &types.StringMatcher{
-			Find: `\u003e`,
-			H: func(index int, content string) (state int, result string) {
-				return types.MAT_MATCHED, strings.Replace(content, `\u003e`, ">", -1)
-			},
-		})
-		// "符处理
-		matchers = append(matchers, &types.StringMatcher{
-			Find: `\"`,
-			H: func(index int, content string) (state int, result string) {
-				return types.MAT_MATCHED, strings.Replace(content, `\"`, "\"", -1)
+				// 换行符处理
+				content = strings.ReplaceAll(content, `\n`, "\n")
+				// <符处理
+				idx := strings.Index(content, "\\u003c")
+				for idx >= 0 {
+					content = content[:idx] + "<" + content[idx+6:]
+					idx = strings.Index(content, "\\u003c")
+				}
+				// >符处理
+				idx = strings.Index(content, "\\u003e")
+				for idx >= 0 {
+					content = content[:idx] + ">" + content[idx+6:]
+					idx = strings.Index(content, "\\u003e")
+				}
+				// "符处理
+				content = strings.ReplaceAll(content, `\"`, "\"")
+				return types.MAT_MATCHED, content
 			},
 		})
 
@@ -232,6 +220,7 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 		var original []byte
 		var textBlock = []byte(`"text": "`)
 
+		var isError = false
 		return func(self *types.CacheBuffer) error {
 			if IsClose() {
 				self.Closed = true
@@ -246,6 +235,9 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 
 			if err == io.EOF {
 				self.Closed = true
+				if isError {
+					return errors.New(string(original))
+				}
 				self.Cache += utils.ExecMatchers(matchers, "\n      ")
 				return nil
 			}
@@ -260,25 +252,35 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 				return nil
 			}
 
+			if isError {
+				return nil
+			}
+
 			dst := make([]byte, len(original))
 			copy(dst, original)
+			if bytes.Contains(dst, []byte(`"error":`)) {
+				isError = true
+				return nil
+			}
+
 			original = make([]byte, 0)
 			if !bytes.Contains(dst, textBlock) {
 				return nil
 			}
 			index := bytes.Index(dst, textBlock)
-			self.Cache += utils.ExecMatchers(matchers, string(dst[index+len(textBlock):len(dst)-1]))
+			rawText := string(dst[index+len(textBlock) : len(dst)-1])
+			logrus.Info("rawText ---- ", rawText)
+			self.Cache += utils.ExecMatchers(matchers, rawText)
 			return nil
 		}
 	}
 }
 
 // openai对接格式转换成Gemini接受格式
-func geminiMessageConversion(r *cmdtypes.RequestDTO) ([]store.Kv, string) {
+func geminiMessageConversion(r *cmdtypes.RequestDTO) []store.Kv {
 	var messages []store.Kv
-	var preset string
-	temp := ""
-	author := ""
+	appen := ""
+	lastRole := ""
 
 	// 知识库上移
 	postRef(r)
@@ -286,72 +288,60 @@ func geminiMessageConversion(r *cmdtypes.RequestDTO) ([]store.Kv, string) {
 	// 遍历归类
 	for _, item := range r.Messages {
 		role := item["role"]
-		if author == role {
-			content := item["content"]
-			if content == "[Start a new Chat]" {
-				continue
-			}
-			temp += "\n\n" + content
+		if role == "system" {
+			role = "user"
+		}
+
+		if lastRole == "" {
+			lastRole = role
+			appen += item["content"]
 			continue
 		}
 
-		if temp != "" {
-			switch author {
-			case "system":
-				if len(messages) == 0 {
-					preset = temp
-					author = role
-					temp = item["content"]
-					continue
-				}
-				fallthrough
-			case "user":
-				messages = append(messages, store.Kv{
-					"author": "user",
-					"text":   temp,
-				})
-			case "assistant":
-				messages = append(messages, store.Kv{
-					"author": "bot",
-					"text":   temp,
-				})
-			}
+		if lastRole == role {
+			appen += "\n\n" + item["content"]
+			continue
 		}
 
-		author = role
-		temp = item["content"]
+		t := ""
+		switch lastRole {
+		case "user":
+			t = "user"
+		case "assistant":
+			t = "bot"
+		default:
+			continue
+		}
+
+		messages = append(messages, store.Kv{
+			"author": t,
+			"text":   appen,
+		})
+		lastRole = role
+		appen = item["content"]
 	}
 
 	// 最后一次循环的文本
-	if temp != "" {
-		_author := ""
-		if author == "system" || author == "user" {
-			_author = "user"
-		} else {
-			_author = "bot"
+	if appen != "" {
+		t := ""
+		switch lastRole {
+		case "user":
+			t = "user"
+		case "assistant":
+			t = "bot"
 		}
-		if l := len(messages); l > 0 && messages[l-1]["author"] == _author {
-			if strings.Contains(temp, "<rule>") { // 特殊标记特殊处理
-				messages[l-1]["text"] = temp + "\n\n" + messages[l-1]["text"]
-			} else {
-				messages[l-1]["text"] += "\n\n" + temp
-			}
-		} else {
-			switch _author {
-			case "user":
-				messages = append(messages, store.Kv{
-					"author": "user",
-					"text":   temp,
-				})
-			case "bot":
-				messages = append(messages, store.Kv{
-					"author": "bot",
-					"text":   temp,
-				})
-			}
+		messages = append(messages, store.Kv{
+			"author": t,
+			"text":   appen,
+		})
+		if t == "bot" {
+			messages = append(messages, store.Kv{
+				"author": "user",
+				"text":   "[continue]",
+			})
 		}
 	}
-	return messages, preset
+	return messages
 }
 
 func responseGeminiError(ctx *gin.Context, err error, isStream bool, token string) {

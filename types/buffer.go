@@ -49,6 +49,9 @@ func (r *CacheBuffer) Read() PartialResponse {
 	var partialResponse PartialResponse
 	if err := r.H(r); err != nil {
 		partialResponse.Error = err
+		if r.Closed {
+			partialResponse.Status = vars.Closed
+		}
 		return partialResponse
 	}
 

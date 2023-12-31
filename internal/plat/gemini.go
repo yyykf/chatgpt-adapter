@@ -20,9 +20,15 @@ type GeminiBot struct {
 func (bot GeminiBot) Reply(ctx types.ConversationContext) chan types.PartialResponse {
 	var message = make(chan types.PartialResponse)
 
-	response := bot.build(message, ctx)
-	if response == nil {
-		defer close(message)
+	response, err := bot.build(ctx)
+	if err != nil {
+		go func() {
+			message <- types.PartialResponse{
+				Error:  err,
+				Status: vars.Closed,
+			}
+			close(message)
+		}()
 		return message
 	}
 
@@ -32,7 +38,7 @@ func (bot GeminiBot) Reply(ctx types.ConversationContext) chan types.PartialResp
 }
 
 // 构建请求，返回响应
-func (GeminiBot) build(message chan types.PartialResponse, ctx types.ConversationContext) *http.Response {
+func (GeminiBot) build(ctx types.ConversationContext) (*http.Response, error) {
 	const (
 		burl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent?key="
 	)
@@ -99,24 +105,21 @@ func (GeminiBot) build(message chan types.PartialResponse, ctx types.Conversatio
 	})
 	if err != nil {
 		logrus.Error(err)
-		message <- types.PartialResponse{Status: vars.Closed, Error: err}
-		return nil
+		return nil, err
 	}
 
 	request, err := http.NewRequest(http.MethodPost, burl+ctx.Token, bytes.NewReader(marshal))
 	if err != nil {
 		logrus.Error(err)
-		message <- types.PartialResponse{Status: vars.Closed, Error: err}
-		return nil
+		return nil, err
 	}
 
 	client := http.DefaultClient
 	if ctx.Proxy != "" {
-		purl, err := url.Parse(ctx.Proxy)
-		if err != nil {
-			logrus.Error(err)
-			message <- types.PartialResponse{Status: vars.Closed, Error: err}
-			return nil
+		purl, e := url.Parse(ctx.Proxy)
+		if e != nil {
+			logrus.Error(e)
+			return nil, e
 		}
 		client = &http.Client{
 			Transport: &http.Transport{
@@ -128,10 +131,10 @@ func (GeminiBot) build(message chan types.PartialResponse, ctx types.Conversatio
 	res, err := client.Do(request)
 	if err != nil {
 		logrus.Error(err)
-		message <- types.PartialResponse{Status: vars.Closed, Error: err}
-		return nil
+		return nil, err
 	}
-	return res
+
+	return res, nil
 }
 
 func (GeminiBot) Remove(id string) bool {

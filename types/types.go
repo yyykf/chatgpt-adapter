@@ -115,6 +115,11 @@ func (mat *StringMatcher) Match(content string) (state int, result string) {
 	index := 0
 	state = MAT_DEFAULT
 
+	if mat.Find == "*" {
+		state = MAT_MATCHED
+		goto state
+	}
+
 	for index = range r {
 		var fCh rune
 		if len(f) <= pos {
@@ -139,6 +144,7 @@ func (mat *StringMatcher) Match(content string) (state int, result string) {
 		}
 	}
 
+state:
 	if state == MAT_DEFAULT {
 		mat.cache = ""
 		result = content
