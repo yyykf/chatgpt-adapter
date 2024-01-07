@@ -235,9 +235,6 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 
 			line, hm, err := reader.ReadLine()
 			original = append(original, line...)
-			if hm {
-				return nil
-			}
 
 			if err == io.EOF {
 				self.Closed = true
@@ -252,6 +249,10 @@ func geminiHandle(IsClose func() bool) types.CustomCacheHandler {
 				self.Closed = true
 				logrus.Error(err)
 				return err
+			}
+
+			if hm {
+				return nil
 			}
 
 			if len(original) == 0 {

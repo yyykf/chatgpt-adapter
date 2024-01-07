@@ -523,7 +523,7 @@ func responseBingAIError(ctx *gin.Context, err error, isStream bool, token strin
 				}
 			}
 		}
-		if e := util.SolveCaptcha(token); e != nil {
+		if e := util.SolveCaptcha2(token); e != nil {
 			errMsg += "\n\n" + e.Error()
 		}
 	}
