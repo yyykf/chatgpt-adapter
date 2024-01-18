@@ -4,7 +4,6 @@ import (
 	"fmt"
 	cmdtypes "github.com/bincooo/chatgpt-adapter/cmd/types"
 	cmdutil "github.com/bincooo/chatgpt-adapter/cmd/util"
-	"github.com/bincooo/edge-api/util"
 )
 
 const content = `1234
@@ -253,7 +252,4 @@ func main() {
 		},
 	}
 	cmdutil.XmlPlot(&r)
-	if err := util.SolveCaptcha(token); err != nil {
-		fmt.Println(err)
-	}
 }

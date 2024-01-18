@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/bincooo/claude-api v1.0.4-0.20231222084806-2c9670c76b8e
-	github.com/bincooo/edge-api v1.0.3-0.20240107064558-b3eafad89459
+	github.com/bincooo/edge-api v1.0.3-0.20240118181157-b561dae5ca7b
 	github.com/bincooo/go-openai v0.0.0-20231030212055-1bb1195dd7f8
 	github.com/bincooo/openai-wapi v1.0.1
 	github.com/bincooo/requests v0.0.0-20230720064210-7eae5d6c9d1e
@@ -45,6 +45,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nirasan/go-oauth-pkce-code-verifier v0.0.0-20220510032225-4f9f17eaec4c // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/refraction-networking/utls v1.3.2 // indirect

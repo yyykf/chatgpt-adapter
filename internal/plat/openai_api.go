@@ -147,7 +147,7 @@ func (bot *OpenAIAPIBot) completionMessage(ctx types.ConversationContext) []open
 
 	// 计算预设的tokens
 	var preset []openai.ChatCompletionMessage
-	if ctx.Preset != "" {
+	if ctx.Preset != "" && !strings.Contains(ctx.Preset, "<!VARS!>") {
 		if err := json.Unmarshal([]byte(ctx.Preset), &preset); err != nil {
 			logrus.Error("预设解析失败")
 		} else {

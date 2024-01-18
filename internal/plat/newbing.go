@@ -48,15 +48,13 @@ func (bot *BingBot) Reply(ctx types.ConversationContext) chan types.PartialRespo
 				return
 			}
 
-			options.RwBf = RwBf
-			options.KievRPSSecAuth = KievAuth
-
-			options.Model = ctx.Model
-			options.Proxy = ctx.Proxy
+			options.KievAuth(KievAuth, RwBf)
+			options.Model(ctx.Model)
+			options.Proxies(ctx.Proxy)
+			options.TopicToE(true)
 
 			chat := edge.New(options)
-			chat.TraceId = ctx.AppId
-			session = chat
+			session = &chat
 			bot.sessions[ctx.Id] = session
 		}
 
@@ -75,13 +73,31 @@ func (bot *BingBot) Reply(ctx types.ConversationContext) chan types.PartialRespo
 				},
 			}, messages...)
 		}
-		partialResponse, err := session.Reply(timeout, ctx.Prompt, messages)
+
+		chatMessages := func() []edge.ChatMessage {
+			messageL := len(messages)
+			if messageL == 0 {
+				return nil
+			}
+			result := make([]edge.ChatMessage, 0)
+			for _, item := range messages {
+				message := edge.ChatMessage{}
+				for k, v := range item {
+					message[k] = v
+				}
+				result = append(result, message)
+			}
+			return result
+		}
+
+		session.Temperature(ctx.Temperature)
+		partialResponse, err := session.Reply(timeout, ctx.Prompt, nil, chatMessages())
 		if err != nil {
 			message <- types.PartialResponse{Error: err}
 			return
 		}
 
-		logrus.Info("[MiaoX] - Bot.Session: ", session.Session.ConversationId)
+		//logrus.Info("[MiaoX] - Bot.Session: ", session.session.ConversationId)
 		bot.handle(ctx, partialResponse, message)
 	}()
 	return message
@@ -105,7 +121,7 @@ func (bot *BingBot) Remove(id string) bool {
 	return true
 }
 
-func (bot *BingBot) handle(ctx types.ConversationContext, partialResponse chan edge.PartialResponse, message chan types.PartialResponse) {
+func (bot *BingBot) handle(ctx types.ConversationContext, partialResponse chan edge.ChatResponse, message chan types.PartialResponse) {
 	pos := 0
 	var r types.CacheBuffer
 
@@ -126,28 +142,6 @@ func (bot *BingBot) handle(ctx types.ConversationContext, partialResponse chan e
 					logrus.Error(response.Error)
 					self.Closed = true
 					return response.Error
-				}
-
-				if response.Type == 2 {
-					if response.Item.Throttling != nil {
-						vars.BingMaxMessage = response.Item.Throttling.Max
-					}
-
-					messages := response.Item.Messages
-					if messages == nil {
-						goto label
-					}
-
-					for _, value := range *messages {
-						if value.Type == "Disengaged" {
-							delete(bot.sessions, ctx.Id)
-							if response.Text == "" {
-								response.Text = "对不起，我不想继续这个对话。我还在学习中，所以感谢你的理解和耐心。🙏"
-							}
-						}
-					}
-
-				label:
 				}
 
 				str := []rune(response.Text)

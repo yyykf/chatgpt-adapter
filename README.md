@@ -98,6 +98,13 @@ GOARM=7 GOOS=linux GOARCH=arm64 go build cmd/exec.go
 
 tips：
 
+由于hugginface拦截禁止了/v1/chat/completions访问，(Server unavailable, error code: 349453)。
+故添加了两个链接：请对号入座
+```
+https://xxxx.hf.space/proxies/v1/chat/completions
+https://xxxx.hf.space/v1/object/completions
+```
+
 不再需要tun模式，因为在mac和linux下没有tun模式或者window抽风tun模式无效
 
 支持流式输出和阻塞输出

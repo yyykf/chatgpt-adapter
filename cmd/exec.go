@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strconv"
 	"strings"
@@ -109,13 +110,24 @@ func Run(*cobra.Command, []string) {
 			c.Writer.Header().Set("Transfer-Encoding", "chunked")
 			c.Writer.Header().Set("X-Accel-Buffering", "no")
 		}
+		data, err := httputil.DumpRequest(c.Request, true)
+		if err != nil {
+			logrus.Warn(err)
+		} else {
+			logrus.Info("------------------------ Request Body ------------------------\n")
+			fmt.Println(string(data))
+		}
 		c.Next()
 	})
 
 	route.Use(crosHandler())
 	route.GET("", index)
 	route.Any("/v1/models", models)
+	// 这个链接被huggingface拦截了，不知是否个例？ Server unavailable, error code: 349453
 	route.POST("/v1/chat/completions", completions)
+	// 尝试以下两个链接
+	route.POST("/v1/object/completions", completions)
+	route.POST("/proxies/v1/chat/completions", completions)
 
 	addr := ":" + strconv.Itoa(port)
 	logrus.Info("Start by http://127.0.0.1" + addr + "/v1")

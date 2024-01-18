@@ -10,7 +10,6 @@ import (
 	"github.com/bincooo/chatgpt-adapter/utils"
 	"github.com/bincooo/chatgpt-adapter/vars"
 	"github.com/bincooo/edge-api"
-	"github.com/bincooo/edge-api/util"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -319,7 +318,7 @@ func bingAIHandle(IsClose func() bool) types.CustomCacheHandler {
 
 		pos := 0
 		return func(self *types.CacheBuffer) error {
-			partialResponse := rChan.(chan edge.PartialResponse)
+			partialResponse := rChan.(chan edge.ChatResponse)
 			response, ok := <-partialResponse
 			if !ok {
 				self.Cache += utils.ExecMatchers(matchers, "\n      ")
@@ -335,28 +334,6 @@ func bingAIHandle(IsClose func() bool) types.CustomCacheHandler {
 			if IsClose() {
 				self.Closed = true
 				return nil
-			}
-
-			if response.Type == 2 {
-				if response.Item.Throttling != nil {
-					vars.BingMaxMessage = response.Item.Throttling.Max
-				}
-
-				messages := response.Item.Messages
-				if messages == nil {
-					goto label
-				}
-
-				for _, value := range *messages {
-					if value.Type == "Disengaged" {
-						// delete(bot.sessions, ctx.Id)
-						if response.Text == "" {
-							response.Text = "对不起，我不想继续这个对话。我还在学习中，所以感谢你的理解和耐心。🙏"
-						}
-					}
-				}
-
-			label:
 			}
 
 			str := []rune(response.Text)
@@ -468,19 +445,23 @@ func bingAIMessageConversion(r *cmdtypes.RequestDTO) ([]store.Kv, string) {
 func padMessages(r *cmdtypes.RequestDTO) {
 	if messageL := len(r.Messages); messageL <= 6 {
 		messages := make([]map[string]string, 0)
-		messages = append(r.Messages, map[string]string{
+		// <!VARS!> 标记不处理
+		if r.Messages[0]["role"] == "user" {
+			return
+		}
+		messages = append(messages, map[string]string{
 			"role":    "user",
 			"content": "你好",
 		})
-		messages = append(r.Messages, map[string]string{
+		messages = append(messages, map[string]string{
 			"role":    "assistant",
 			"content": "你好，这是必应。我可以用中文和你聊天，也可以帮你做一些有趣的事情，比如写诗，编程，创作歌曲，角色扮演等等。你想让我做什么呢？😊",
 		})
-		messages = append(r.Messages, map[string]string{
+		messages = append(messages, map[string]string{
 			"role":    "user",
 			"content": "你能做什么",
 		})
-		messages = append(r.Messages, map[string]string{
+		messages = append(messages, map[string]string{
 			"role":    "assistant",
 			"content": "我能做很多有趣和有用的事情，比如：\n\n- 和你聊天，了解你的兴趣和爱好，扮演一些有趣的角色或故事。\n- 帮你搜索网上的信息，提供相关的网页、图片和新闻链接。\n- 为你创作一些内容，比如诗歌、故事、代码、歌曲等等，你可以告诉我你想要的主题或风格。\n- 描述你上传的图片，告诉你图片里有什么，或者画一幅你想要的图画。\n\n你想让我试试哪一项呢？😊",
 		})
@@ -512,20 +493,20 @@ func classifyQuestion(r *cmdtypes.RequestDTO) {
 
 func responseBingAIError(ctx *gin.Context, err error, isStream bool, token string) {
 	errMsg := err.Error()
-	if strings.Contains(errMsg, "User needs to solve CAPTCHA to continue") {
-		errMsg = "用户需要人机验证...  已尝试自动验证，若重新生成文本无效请手动验证。"
-		if strings.Contains(token, "_U=") {
-			split := strings.Split(token, ";")
-			for _, item := range split {
-				if strings.Contains(item, "_U=") {
-					token = strings.TrimSpace(strings.ReplaceAll(item, "_U=", ""))
-					break
-				}
-			}
-		}
-		if e := util.SolveCaptcha2(token); e != nil {
-			errMsg += "\n\n" + e.Error()
-		}
-	}
+	//if strings.Contains(errMsg, "User needs to solve CAPTCHA to continue") {
+	//	errMsg = "用户需要人机验证...  已尝试自动验证，若重新生成文本无效请手动验证。"
+	//	if strings.Contains(token, "_U=") {
+	//		split := strings.Split(token, ";")
+	//		for _, item := range split {
+	//			if strings.Contains(item, "_U=") {
+	//				token = strings.TrimSpace(strings.ReplaceAll(item, "_U=", ""))
+	//				break
+	//			}
+	//		}
+	//	}
+	//	if e := util.SolveCaptcha2(token); e != nil {
+	//		errMsg += "\n\n" + e.Error()
+	//	}
+	//}
 	ResponseError(ctx, errMsg, isStream)
 }

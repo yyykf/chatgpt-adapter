@@ -4,10 +4,7 @@ import (
 	"github.com/bincooo/chatgpt-adapter/store"
 	"github.com/bincooo/chatgpt-adapter/types"
 	"github.com/bincooo/chatgpt-adapter/vars"
-	"github.com/sirupsen/logrus"
 	"strings"
-
-	"github.com/bincooo/edge-api/util"
 )
 
 var (
@@ -29,20 +26,7 @@ func (c *CacheInterceptor) Before(bot types.Bot, ctx *types.ConversationContext)
 	if c.cache == nil {
 		c.cache = make(map[string]string)
 	}
-	image, result := util.ParseImage(ctx.Prompt)
-	if image != "" {
-		burl := ctx.BaseURL
-		if ctx.Bot != vars.Bing {
-			burl = "https://www.bing.com"
-		}
-		blob, err := util.UploadImage(burl, ctx.Proxy, image)
-		if err != nil {
-			logrus.Error(err)
-			return false, err
-		}
-		result = "{blob:" + blob.BlobId + "#" + blob.ProcessedBlobId + "}\n" + result
-		ctx.Prompt = result
-	}
+
 	lIdx := strings.Index(ctx.Prompt, "<i>")
 	rIdx := strings.Index(ctx.Prompt, "</i>")
 	if lIdx >= 0 && rIdx > lIdx {
