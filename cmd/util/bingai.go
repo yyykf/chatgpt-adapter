@@ -336,6 +336,10 @@ func bingAIHandle(IsClose func() bool) types.CustomCacheHandler {
 				return nil
 			}
 
+			if response.T != nil {
+				vars.BingMaxMessage = response.T.Max
+			}
+
 			str := []rune(response.Text)
 			length := len(str)
 			if pos >= length {

@@ -144,6 +144,10 @@ func (bot *BingBot) handle(ctx types.ConversationContext, partialResponse chan e
 					return response.Error
 				}
 
+				if response.T != nil {
+					vars.BingMaxMessage = response.T.Max
+				}
+
 				str := []rune(response.Text)
 				length := len(str)
 				if pos >= length {
