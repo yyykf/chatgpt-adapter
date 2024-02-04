@@ -30,9 +30,9 @@ func (bot *ClaudeBot) Reply(ctx types.ConversationContext) chan types.PartialRes
 			if model == vars.Model4WebClaude2S {
 				model = clVars.Model4WebClaude2
 			}
-			options := claude.NewDefaultOptions(ctx.Token, ctx.AppId, model)
+			options := claude.NewDefaultOptions(ctx.Token, model)
 			options.BaseURL = ctx.BaseURL
-			options.Agency = ctx.Proxy
+			options.Proxies = ctx.Proxy
 			chat, err := claude.New(options)
 			if err != nil {
 				message <- types.PartialResponse{Error: err}

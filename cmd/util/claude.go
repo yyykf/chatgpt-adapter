@@ -94,7 +94,7 @@ label:
 
 			if response.Error != nil {
 				isClose = true
-				var e *cltypes.Claude2Error
+				var e *cltypes.ErrorWrapper
 				ok := errors.As(response.Error, &e)
 				err = response.Error
 				if ok && token == "auto" {
@@ -517,7 +517,7 @@ func claudeHandle(model string, s schema, IsClose func() bool) types.CustomCache
 	}
 }
 
-func handleClaudeError(err *cltypes.Claude2Error) (msg string) {
+func handleClaudeError(err *cltypes.ErrorWrapper) (msg string) {
 	if err.ErrorType.Message == "Account in read-only mode" {
 		cmdvars.GlobalToken = ""
 		msg = cmdvars.I18n("ACCOUNT_LOCKED")

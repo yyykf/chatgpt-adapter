@@ -36,7 +36,7 @@ func main() {
 	logrus.SetLevel(logrus.InfoLevel)
 	_ = godotenv.Load()
 	cmdvars.GlobalPadding = cmdutil.LoadEnvVar("PADDING", "")
-	cmdvars.GlobalPaddingSize = cmdutil.LoadEnvInt("PADDING_SIZE", 35000)
+	cmdvars.GlobalPaddingSize = cmdutil.LoadEnvInt("PADDING_SIZE", 25000)
 	cmdvars.GlobalToken = util.LoadEnvVar("CACHE_KEY", "")
 	cmdvars.AutoPwd = util.LoadEnvVar("PASSWORD", "")
 	Exec()

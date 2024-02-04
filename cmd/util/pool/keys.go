@@ -219,8 +219,8 @@ label:
 
 // 测试sessionKey是否可用
 func TestMessage(token string) error {
-	options := claude.NewDefaultOptions(token, "", clvars.Model4WebClaude2)
-	options.Agency = cmdvars.Proxy
+	options := claude.NewDefaultOptions(token, clvars.Model4WebClaude2)
+	options.Proxies = cmdvars.Proxy
 	chat, err := claude.New(options)
 	if err != nil {
 		return err
