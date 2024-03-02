@@ -3,6 +3,7 @@ package log
 import (
 	"bytes"
 	"github.com/sirupsen/logrus"
+	"io"
 	"os"
 	"strings"
 	_ "unsafe"
@@ -57,6 +58,18 @@ func init() {
 	if err != nil {
 		logrus.Warnln("VT100设置失败, 将以无色模式输出")
 	}
+
+	// 创建或打开日志文件
+	logFile, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logrus.Fatalf("Failed to open log file: %v", err)
+	}
+
+	// 创建一个MultiWriter，它会同时写入标准输出和文件
+	mw := io.MultiWriter(os.Stdout, logFile)
+
+	// 设置Logrus的输出为MultiWriter
+	logrus.SetOutput(mw)
 }
 
 const (
