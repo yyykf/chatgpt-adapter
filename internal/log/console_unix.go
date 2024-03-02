@@ -5,6 +5,8 @@ package log
 
 import (
 	"github.com/sirupsen/logrus"
+	"io"
+	"os"
 	"path"
 	"runtime"
 	"strconv"
