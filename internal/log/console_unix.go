@@ -25,6 +25,15 @@ func init() {
 			return path.Dir(frame.Function), path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
 		},
 	})
+
+	logFile, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logrus.Fatalf("Failed to open log file: %v", err)
+	}
+
+	mw := io.MultiWriter(os.Stdout, logFile)
+
+	logrus.SetOutput(mw)
 }
 
 func TrimPkg(pkg string) string {
