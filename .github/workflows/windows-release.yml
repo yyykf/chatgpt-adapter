@@ -1,4 +1,4 @@
-name: Linux Release
+name: Windows Release
 permissions:
   contents: write
 
@@ -13,7 +13,10 @@ on:
         required: false
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -23,27 +26,16 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: '>=1.21.6'
-      - name: Build Backend (amd64)
+      - name: Build Backend
         run: |
           cmd="go build"
           args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          ldflags="-ldflags '-w -s -extldflags \"-static\"'"
-          GOOS=linux GOARCH=amd64 ${cmd} ${args} ${ldflags} -o linux-server server.go
-
-      - name: Build Backend (arm64)
-        run: |
-          cmd="go build"
-          args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          ldflags="-ldflags '-w -s -extldflags \"-static\"'"
-          GOARM=7 GOOS=linux GOARCH=arm ${cmd} ${args} ${ldflags} -o linux-server-arm64 server.go
-
+          GOOS=windows GOARCH=amd64 ${cmd} ${args} -ldflags '-w -s' -o win-server.exe server.go
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            linux-server
-            linux-server-arm64
+          files: win-server.exe
           draft: true
           generate_release_notes: true
         env:
