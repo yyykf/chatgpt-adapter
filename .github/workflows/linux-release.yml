@@ -27,14 +27,14 @@ jobs:
         run: |
           cmd="go build"
           args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          ldflags="-ldflags '-w -s -extldflags \"-static\"'"
+          ldflags="-ldflags '-w -s -extldflags=-static'"
           GOOS=linux GOARCH=amd64 ${cmd} ${args} ${ldflags} -o linux-server server.go
 
       - name: Build Backend (arm64)
         run: |
           cmd="go build"
           args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          ldflags="-ldflags '-w -s -extldflags \"-static\"'"
+          ldflags="-ldflags '-w -s -extldflags=-static'"
           GOARM=7 GOOS=linux GOARCH=arm ${cmd} ${args} ${ldflags} -o linux-server-arm64 server.go
 
       - name: Release
