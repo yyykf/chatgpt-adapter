@@ -27,13 +27,13 @@ jobs:
         run: |
           cmd="go build"
           args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          GOOS=linux GOARCH=amd64 ${cmd} ${args} -ldflags "-s -w -extldflags '-static'" -o linux-server server.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ${cmd} ${args} -ldflags "-s -w -extldflags '-static'" -o linux-server server.go
 
       - name: Build Backend (arm64)
         run: |
           cmd="go build"
           args="-gcflags=-trimpath=$(pwd) -asmflags=-trimpath=$(pwd)"
-          GOARM=7 GOOS=linux GOARCH=arm ${cmd} ${args} -ldflags "-s -w -extldflags '-static'" -o linux-server-arm64 server.go
+          CGO_ENABLED=0 GOARM=7 GOOS=linux GOARCH=arm ${cmd} ${args} -ldflags "-s -w -extldflags '-static'" -o linux-server-arm64 server.go
 
       - name: Release
         uses: softprops/action-gh-release@v1
