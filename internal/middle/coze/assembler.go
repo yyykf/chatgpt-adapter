@@ -3,7 +3,7 @@ package coze
 import (
 	"errors"
 	"fmt"
-	"github.com/bincooo/chatgpt-adapter/v2/internal/agent"
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 	"github.com/bincooo/coze-api"
@@ -16,8 +16,29 @@ import (
 
 const MODEL = "coze"
 
-func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) {
-	options := coze.NewDefaultOptions("7339624035606904840", "1708909262893", 2, proxies)
+var (
+	// 35-16k
+	botId35_16k   = "7349524440562090002"
+	version35_16k = "1711372695134"
+	scene35_16k   = 2
+
+	// 8k
+	botId8k   = "7344596855164452870"
+	version8k = "1711372786400"
+	scene8k   = 2
+
+	// 128k
+	botId128k   = "7339624035606904840"
+	version128k = "1711450454581"
+	scene128k   = 2
+)
+
+func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
+	var (
+		cookie   = ctx.GetString("token")
+		proxies  = ctx.GetString("proxies")
+		notebook = ctx.GetBool("notebook")
+	)
 
 	messages := req.Messages
 	messageL := len(messages)
@@ -31,7 +52,7 @@ func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRe
 		if e != nil {
 			errMessage := e.Error()
 			if strings.Contains(errMessage, "Login verification is invalid") {
-				middle.ResponseWithV(ctx, http.StatusTooManyRequests, errMessage)
+				middle.ResponseWithV(ctx, http.StatusUnauthorized, errMessage)
 			}
 			middle.ResponseWithV(ctx, -1, errMessage)
 			return
@@ -47,87 +68,67 @@ func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRe
 		return
 	}
 
-	msToken := ""
-	if !strings.Contains(cookie, "[msToken=") {
-		middle.ResponseWithV(ctx, -1, "please provide the '[msToken=xxx]' cookie parameter")
-		return
-	} else {
-		co := strings.Split(cookie, "[msToken=")
-		msToken = strings.TrimSuffix(co[1], "]")
-		cookie = co[0]
-	}
-	chat := coze.New(cookie, msToken, options)
+	options := newOptions(proxies, pMessages)
+	chat := coze.New(cookie, options)
 
-	chatResponse, err := chat.Reply(ctx.Request.Context(), pMessages)
+	query := ""
+	if notebook && len(pMessages) > 0 {
+		// notebook 模式只取第一条 content
+		query = pMessages[0].Content
+	} else {
+		query = coze.MergeMessages(pMessages)
+	}
+
+	chatResponse, err := chat.Reply(ctx.Request.Context(), query)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
 	}
 
-	waitResponse(ctx, chatResponse, req.Stream)
+	waitResponse(ctx, matchers, chatResponse, req.Stream)
 }
 
-func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) (bool, error) {
-	logrus.Infof("completeTools ...")
-	toolsMap, prompt, err := middle.BuildToolCallsTemplate(
-		req.Tools,
-		req.Messages,
-		agent.BingToolCallsTemplate, 5)
+func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
+	var (
+		cookie  = ctx.GetString("token")
+		proxies = ctx.GetString("proxies")
+	)
+
+	// 只绘画用3.5 16k即可
+	options := coze.NewDefaultOptions(botId35_16k, version35_16k, scene35_16k, proxies)
+	chat := coze.New(cookie, options)
+	image, err := chat.Images(ctx.Request.Context(), req.Prompt)
 	if err != nil {
-		return false, err
+		middle.ResponseWithE(ctx, -1, err)
+		return
 	}
 
-	options := coze.NewDefaultOptions("7339624035606904840", "1708909262893", 2, proxies)
-
-	msToken := ""
-	if !strings.Contains(cookie, "[msToken=") {
-		return false, errors.New("please provide the '[msToken=xxx]' cookie parameter")
-	} else {
-		co := strings.Split(cookie, "[msToken=")
-		msToken = strings.TrimSuffix(co[1], "]")
-		cookie = co[0]
-	}
-
-	chat := coze.New(cookie, msToken, options)
-	chatResponse, err := chat.Reply(ctx.Request.Context(), []coze.Message{
-		{
-			Role:    "user",
-			Content: prompt,
+	ctx.JSON(http.StatusOK, gin.H{
+		"created": time.Now().Unix(),
+		"styles:": make([]string, 0),
+		"data": []map[string]string{
+			{"url": image},
 		},
 	})
-	if err != nil {
-		return false, err
-	}
-
-	content, err := waitMessage(chatResponse)
-	if err != nil {
-		return false, err
-	}
-	logrus.Infof("completeTools response: \n%s", content)
-	return parseToToolCall(ctx, toolsMap, content, req.Stream)
 }
 
-func parseToToolCall(ctx *gin.Context, toolsMap map[string]string, content string, sse bool) (bool, error) {
-	created := time.Now().Unix()
-	for k, v := range toolsMap {
-		if strings.Contains(content, k) {
-			left := strings.Index(content, "{")
-			right := strings.LastIndex(content, "}")
-			argv := ""
-			if left >= 0 && right > left {
-				argv = content[left : right+1]
-			}
+func newOptions(proxies string, pMessages []coze.Message) (options coze.Options) {
+	opts8k := coze.NewDefaultOptions(botId8k, version8k, scene8k, proxies)
+	opts128k := coze.NewDefaultOptions(botId128k, version128k, scene128k, proxies)
 
-			if sse {
-				middle.ResponseWithSSEToolCalls(ctx, MODEL, v, argv, created)
-				return false, nil
-			} else {
-				middle.ResponseWithToolCalls(ctx, MODEL, v, argv)
-				return false, nil
-			}
-		}
+	options = opts8k
+	tokensL := calcTokens(pMessages)
+	if tokensL > 7000 { // 大于7k token 使用 gpt-128k
+		options = opts128k
 	}
-	return true, nil
+	return
+}
+
+func calcTokens(messages []coze.Message) (tokensL int) {
+	for _, message := range messages {
+		tokensL += common.CalcTokens(message.Content)
+	}
+	return
 }
 
 func waitMessage(chatResponse chan string) (content string, err error) {
@@ -151,33 +152,34 @@ func waitMessage(chatResponse chan string) (content string, err error) {
 	return content, nil
 }
 
-func waitResponse(ctx *gin.Context, chatResponse chan string, sse bool) {
+func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan string, sse bool) {
 	content := ""
 	created := time.Now().Unix()
 	logrus.Infof("waitResponse ...")
 
 	for {
-		message, ok := <-chatResponse
+		raw, ok := <-chatResponse
 		if !ok {
 			break
 		}
 
-		if strings.HasPrefix(message, "error: ") {
-			middle.ResponseWithV(ctx, -1, strings.TrimPrefix(message, "error: "))
+		if strings.HasPrefix(raw, "error: ") {
+			middle.ResponseWithV(ctx, -1, strings.TrimPrefix(raw, "error: "))
 			return
 		}
 
-		message = strings.TrimPrefix(message, "text: ")
-		contentL := len(message)
+		raw = strings.TrimPrefix(raw, "text: ")
+		contentL := len(raw)
 		if contentL <= 0 {
 			continue
 		}
 
-		fmt.Printf("----- raw -----\n %s\n", message)
+		fmt.Printf("----- raw -----\n %s\n", raw)
+		raw = common.ExecMatchers(matchers, raw)
 		if sse {
-			middle.ResponseWithSSE(ctx, MODEL, message, created)
+			middle.ResponseWithSSE(ctx, MODEL, raw, created)
 		} else {
-			content += message
+			content += raw
 		}
 	}
 

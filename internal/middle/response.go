@@ -1,34 +1,51 @@
 package middle
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"math/rand"
 	"net/http"
 	"time"
 )
 
-func ResponseWithE(ctx *gin.Context, code int, err error) {
-	logrus.Error("response error: ", err)
-	if code == -1 {
-		code = http.StatusBadGateway
+var ContentCanceled = errors.New("request canceled")
+
+func IsCanceled(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ContentCanceled
+	default:
+		return nil
 	}
-	ctx.JSON(code, gin.H{
-		"error": map[string]string{
-			"message": err.Error(),
-		},
-	})
 }
 
+func ResponseWithE(ctx *gin.Context, code int, err error) {
+	ResponseWithV(ctx, code, err.Error())
+}
+
+// one-api 重试机制
+//
+//	read to https://github.com/songquanpeng/one-api/blob/5e81e19bc81e88d5df15a04f6a6268886127e002/controller/relay.go#L99
+//	code 429 http.StatusTooManyRequests
+//	code 5xx
+//
+// one-api 自动关闭管道
+//
+//	https://github.com/songquanpeng/one-api/blob/5e81e19bc81e88d5df15a04f6a6268886127e002/controller/relay.go#L118
+//	code 401 http.StatusUnauthorized
+//	err.Type ...
 func ResponseWithV(ctx *gin.Context, code int, error string) {
 	logrus.Errorf("response error: %s", error)
 	if code == -1 {
-		code = http.StatusBadGateway
+		code = http.StatusInternalServerError
 	}
 	ctx.JSON(code, gin.H{
+		// "code": "invalid_api_key",
 		"error": map[string]string{
 			"message": error,
 		},
@@ -121,7 +138,7 @@ func ResponseWithToolCalls(ctx *gin.Context, model, name, args string) {
 					Role: "assistant",
 					ToolCalls: []map[string]interface{}{
 						{
-							"id":   "call_" + RandString(5),
+							"id":   "call_" + common.RandStr(5),
 							"type": "function",
 							"function": map[string]string{
 								"name":      name,
@@ -170,7 +187,7 @@ func ResponseWithSSEToolCalls(ctx *gin.Context, model, name, args string, create
 	toolCall := make(map[string]interface{})
 	toolCall["index"] = index
 	toolCall["type"] = "function"
-	toolCall["id"] = "call_" + RandString(5)
+	toolCall["id"] = "call_" + common.RandStr(5)
 	toolCall["function"] = map[string]string{"name": name}
 	response.Choices[index].Delta.ToolCalls[index] = toolCall
 
@@ -210,25 +227,4 @@ func ResponseWithSSEToolCalls(ctx *gin.Context, model, name, args string, create
 
 	_, _ = fmt.Fprintf(w, "data: [DONE]")
 	w.Flush()
-}
-
-func RandString(n int) string {
-	var runes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
-	bytes := make([]rune, n)
-	for i := range bytes {
-		bytes[i] = runes[rand.Intn(len(runes))]
-	}
-	return string(bytes)
-}
-
-func Contains[T comparable](slice []T, t T) bool {
-	if slice == nil {
-		return false
-	}
-	for _, item := range slice {
-		if item == t {
-			return true
-		}
-	}
-	return false
 }

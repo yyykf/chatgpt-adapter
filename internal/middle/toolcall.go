@@ -1,6 +1,7 @@
 package middle
 
 import (
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 )
 
@@ -12,7 +13,7 @@ func BuildToolCallsTemplate(
 	messages []map[string]string,
 	toolCallsTemplate string,
 	maxMessage int,
-) (toolsMap map[string]string, prompt string, err error) {
+) (prompt string, err error) {
 	pMessages := messages
 	content := "continue"
 	if messageL := len(messages); messageL > 0 && messages[messageL-1]["role"] == "user" {
@@ -30,9 +31,9 @@ func BuildToolCallsTemplate(
 		Variables("tools", tools).
 		Variables("pMessages", pMessages).
 		Variables("content", content).
-		Func("rand", RandString).
+		Func("rand", common.RandStr).
 		Func("contains", func(s1 []string, s2 string) bool {
-			return Contains(s1, s2)
+			return common.Contains(s1, s2)
 		}).
 		Func("setId", func(index int, value string) string {
 			tools[index].Fun.Id = value
@@ -45,14 +46,6 @@ func BuildToolCallsTemplate(
 	prompt, err = build(toolCallsTemplate)
 	if err != nil {
 		return
-	}
-
-	toolsMap = make(map[string]string)
-	for _, tool := range tools {
-		if tool.T == "function" {
-			f := tool.Fun
-			toolsMap[f.Id] = f.Name
-		}
 	}
 
 	return

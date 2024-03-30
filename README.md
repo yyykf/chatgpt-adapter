@@ -1,15 +1,10 @@
 ## V2
 
-### TIPS
-非源码自行编译者，请下载release下的V2版
-
-命令执行：
-```shell
+#### 使用
+```
 ./linux-server -h
 
-```
-参数如下：
-```
+>>>>>
 GPT接口适配器。统一适配接口规范，集成了bing、claude-2，gemini...
 项目地址：https://github.com/bincooo/chatgpt-adapter
 
@@ -23,10 +18,11 @@ Flags:
   -v, --version          version for ChatGPT-Adapter
 ```
 
-启动：(国内机器请使用本地代理 `proxies`)
-```shell
-./linux-server --proxies http://127.0.0.1:7890
 
+启动服务，如果网络不在服务区域，请尝试设置/替换 `proxies`
+
+```
+./linux-server --port 8080 --proxies socks5://127.0.0.1:7890
 ```
 
 #### 请求列表
@@ -97,12 +93,50 @@ gemini:
 > 在 `ai.google.dev` 中申请，获取 token凭证就是 `Authorization` 参数
 
 coze:
-> 在 `www.coze.com` 官网中登陆，浏览器 `cookies` 中取出 `sessionid` 、`msToken` 的值就是 `Authorization` 参数
->
-> 格式拼接： 
+> 在 `www.coze.com` 官网中登陆，浏览器 `cookies` 中取出 `sessionid` 的值就是 `Authorization` 参数
 > 
-> ${sessionid}[msToken=${msToken}]
-> 
-> 例子：
-> 
-> 3fdb9fb39a9bc013049e4315c5xxx[msToken=xxx]
+> TIPS：用户在更新版本时请注意，coze 不再需要传入msToken，更新后需要删除。
+
+
+#### free画图接口
+
+提供了 `coze.dall-e-3`、 `sd.dall-e-3`、`xl.dall-e-3`, `kb.dall-e-3`, `pg.dall-e-3`，它们会根据你提供的 `Authorization` 选择其中的一个
+
+```txt
+// 下面三个固定写法
+
+// sd.dall-e-3
+Authorization: sk-prodia-sd
+
+// xl.dall-e-3
+Authorization: sk-prodia-xl
+
+// kb.dall-e-3
+Authorization: sk-krebzonide
+```
+
+api:
+
+```txt
+/v1/chat/generations
+/v1/object/generations
+/proxies/v1/chat/generations
+```
+
+```curl
+curl -i -X POST \
+   -H "Content-Type:application/json" \
+   -H "Authorization: xxx" \
+   -d \
+'{
+  "prompt":"一个二次元少女",
+  "style":"",
+  "model":"dall-e-3",
+  "n":1
+}' \
+ 'http://127.0.0.1:8080/v1/chat/generations'
+```
+
+#### 特殊标记增强
+
+[flags](flags.md)

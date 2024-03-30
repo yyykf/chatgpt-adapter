@@ -15,6 +15,14 @@ type ChatCompletionRequest struct {
 	} `json:"tools"`
 }
 
+type ChatGenerationRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	N      int    `json:"n"`
+	Size   string `json:"size"`
+	Style  string `json:"style"`
+}
+
 type Function struct {
 	Id          string `json:"-"`
 	Name        string `json:"name"`
@@ -33,6 +41,10 @@ type ChatCompletionResponse struct {
 	Created int64                          `json:"created"`
 	Model   string                         `json:"model"`
 	Choices []ChatCompletionResponseChoice `json:"choices"`
+	Error   *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error"`
 }
 
 type ChatCompletionResponseChoice struct {

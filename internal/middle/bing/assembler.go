@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bincooo/chatgpt-adapter/v2/internal/agent"
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 	"github.com/bincooo/edge-api"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -18,7 +19,13 @@ import (
 const MODEL = "bing"
 const sysPrompt = "This is the conversation record and description stored locally as \"JSON\" : (\" System \"is the system information,\" User \"is the user message,\" Function \"is the execution result of the built-in tool, and\" Assistant \"is the reply information of the system assistant)"
 
-func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) {
+func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
+	var (
+		cookie   = ctx.GetString("token")
+		proxies  = ctx.GetString("proxies")
+		notebook = ctx.GetBool("notebook")
+	)
+
 	options, err := edge.NewDefaultOptions(cookie, "")
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
@@ -49,11 +56,16 @@ func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRe
 		return
 	}
 
+	// 清理多余的标签
+	matchers = appendMatchers(matchers)
 	chat := edge.New(options.
 		Proxies(proxies).
 		TopicToE(true).
 		Model(edge.ModelSydney).
 		Temperature(req.Temperature))
+	if notebook {
+		chat.Notebook(true)
+	}
 
 	chatResponse, err := chat.Reply(ctx.Request.Context(), prompt, nil, pMessages)
 	if err != nil {
@@ -63,67 +75,67 @@ func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRe
 	defer func() {
 		go chat.Delete()
 	}()
-	waitResponse(ctx, chatResponse, req.Stream)
+	waitResponse(ctx, matchers, chatResponse, req.Stream)
 }
 
-func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) (bool, error) {
-	logrus.Infof("completeTools ...")
-	toolsMap, prompt, err := middle.BuildToolCallsTemplate(
-		req.Tools,
-		req.Messages,
-		agent.BingToolCallsTemplate, 5)
-	if err != nil {
-		return false, err
-	}
-
-	options, err := edge.NewDefaultOptions(cookie, "")
-	if err != nil {
-		return false, err
-	}
-
-	chat := edge.New(options.
-		Proxies(proxies).
-		TopicToE(true).
-		Notebook(true).
-		Model(edge.ModelCreative).
-		Temperature(req.Temperature))
-	chatResponse, err := chat.Reply(ctx.Request.Context(), prompt, nil, nil)
-	if err != nil {
-		return false, err
-	}
-
-	defer func() {
-		go chat.Delete()
-	}()
-	content, err := waitMessage(chatResponse)
-	if err != nil {
-		return false, err
-	}
-	logrus.Infof("completeTools response: \n%s", content)
-	return parseToToolCall(ctx, toolsMap, content, req.Stream)
-}
-
-func parseToToolCall(ctx *gin.Context, toolsMap map[string]string, content string, sse bool) (bool, error) {
-	created := time.Now().Unix()
-	for k, v := range toolsMap {
-		if strings.Contains(content, k) {
-			left := strings.Index(content, "{")
-			right := strings.LastIndex(content, "}")
-			argv := ""
-			if left >= 0 && right > left {
-				argv = content[left : right+1]
+func appendMatchers(matchers []common.Matcher) []common.Matcher {
+	// 清理 [1]、[2] 标签
+	// 清理 [^1^]、[^2^] 标签
+	// 清理 [^1^ 标签
+	matchers = append(matchers, &common.SymbolMatcher{
+		Find: "[",
+		H: func(index int, content string) (state int, result string) {
+			r := []rune(content)
+			eIndex := len(r) - 1
+			if index+4 > eIndex {
+				if index <= eIndex && r[index] != []rune("^")[0] {
+					return common.MAT_MATCHED, content
+				}
+				return common.MAT_MATCHING, content
 			}
-
-			if sse {
-				middle.ResponseWithSSEToolCalls(ctx, MODEL, v, argv, created)
-				return false, nil
-			} else {
-				middle.ResponseWithToolCalls(ctx, MODEL, v, argv)
-				return false, nil
+			regexCompile := regexp.MustCompile(`\[\d+]`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\[\^\d+\^]:`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\[\^\d+\^]`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\[\^\d+\^\^`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\[\^\d+\^`)
+			content = regexCompile.ReplaceAllString(content, "")
+			if strings.HasSuffix(content, "[") || strings.HasSuffix(content, "[^") {
+				return common.MAT_MATCHING, content
 			}
-		}
-	}
-	return true, nil
+			return common.MAT_MATCHED, content
+		},
+	})
+	// (^1^) (^1^ (^1^^ 标签
+	matchers = append(matchers, &common.SymbolMatcher{
+		Find: "(",
+		H: func(index int, content string) (state int, result string) {
+			r := []rune(content)
+			eIndex := len(r) - 1
+			if index+4 > eIndex {
+				if index <= eIndex && r[index] != []rune("^")[0] {
+					return common.MAT_MATCHED, content
+				}
+				return common.MAT_MATCHING, content
+			}
+			regexCompile := regexp.MustCompile(`\(\^\d+\^\):`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\(\^\d+\^\)`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\(\^\d+\^\^`)
+			content = regexCompile.ReplaceAllString(content, "")
+			regexCompile = regexp.MustCompile(`\(\^\d+\^`)
+			content = regexCompile.ReplaceAllString(content, "")
+			if strings.HasSuffix(content, "(") || strings.HasSuffix(content, "(^") {
+				return common.MAT_MATCHING, content
+			}
+			return common.MAT_MATCHED, content
+		},
+	})
+	return matchers
 }
 
 func waitMessage(chatResponse chan edge.ChatResponse) (content string, err error) {
@@ -146,12 +158,14 @@ func waitMessage(chatResponse chan edge.ChatResponse) (content string, err error
 	return content, nil
 }
 
-func waitResponse(ctx *gin.Context, chatResponse chan edge.ChatResponse, sse bool) {
-	pos := 0
-	content := ""
-	created := time.Now().Unix()
-	logrus.Infof("waitResponse ...")
+func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan edge.ChatResponse, sse bool) {
+	var (
+		pos     = 0
+		content = ""
+		created = time.Now().Unix()
+	)
 
+	logrus.Info("waitResponse ...")
 	for {
 		message, ok := <-chatResponse
 		if !ok {
@@ -163,17 +177,19 @@ func waitResponse(ctx *gin.Context, chatResponse chan edge.ChatResponse, sse boo
 			return
 		}
 
+		var raw string
 		contentL := len(message.Text)
 		if pos < contentL {
-			content = message.Text[pos:contentL]
-			fmt.Printf("----- raw -----\n %s\n", content)
+			raw = message.Text[pos:contentL]
+			fmt.Printf("----- raw -----\n %s\n", raw)
 		}
 		pos = contentL
+		raw = common.ExecMatchers(matchers, raw)
 
 		if sse {
-			middle.ResponseWithSSE(ctx, MODEL, content, created)
-		} else if len(message.Text) > 0 {
-			content = message.Text
+			middle.ResponseWithSSE(ctx, MODEL, raw, created)
+		} else {
+			content += raw
 		}
 	}
 

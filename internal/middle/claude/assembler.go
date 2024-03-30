@@ -3,7 +3,7 @@ package claude
 import (
 	"errors"
 	"fmt"
-	"github.com/bincooo/chatgpt-adapter/v2/internal/agent"
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 	claude2 "github.com/bincooo/claude-api"
@@ -19,8 +19,18 @@ import (
 const MODEL = "claude-2"
 const padtxtMaxCount = 25000
 
-func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) {
-	options := claude2.NewDefaultOptions(cookie, vars.Model4WebClaude2)
+func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
+	var (
+		cookie  = ctx.GetString("token")
+		proxies = ctx.GetString("proxies")
+	)
+
+	model := vars.Model4WebClaude2
+	if strings.HasPrefix(req.Model, "claude-") {
+		model = req.Model
+	}
+
+	options := claude2.NewDefaultOptions(cookie, model)
 	options.Proxies = proxies
 
 	messages := req.Messages
@@ -59,76 +69,7 @@ func Complete(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRe
 		return
 	}
 	defer chat.Delete()
-	waitResponse(ctx, chatResponse, req.Stream)
-}
-
-func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) (bool, error) {
-	logrus.Infof("completeTools ...")
-	toolsMap, prompt, err := middle.BuildToolCallsTemplate(
-		req.Tools,
-		req.Messages,
-		agent.ClaudeToolCallsTemplate, 5)
-	if err != nil {
-		return false, err
-	}
-
-	options := claude2.NewDefaultOptions(cookie, vars.Model4WebClaude2)
-	options.Proxies = proxies
-
-	chat, err := claude2.New(options)
-	if err != nil {
-		return false, err
-	}
-
-	if s := padtxt(padtxtMaxCount - len(prompt)); s != "" {
-		prompt = fmt.Sprintf("%s\n--------\n\n%s", s, prompt)
-	}
-	chatResponse, err := chat.Reply(ctx.Request.Context(), "", []types.Attachment{
-		{
-			Content:  prompt,
-			FileName: "paste.txt",
-			FileSize: len(prompt),
-			FileType: "text/plain",
-		},
-	})
-	if err != nil {
-		return false, err
-	}
-	defer chat.Delete()
-	content, err := waitMessage(chatResponse)
-	if err != nil {
-		return false, err
-	}
-	logrus.Infof("completeTools response: \n%s", content)
-	return parseToToolCall(ctx, toolsMap, content, req.Stream)
-}
-
-func parseToToolCall(ctx *gin.Context, toolsMap map[string]string, content string, sse bool) (bool, error) {
-	created := time.Now().Unix()
-	// 不合法标记
-	if strings.Contains(content, "questionType") {
-		return true, nil
-	}
-
-	for k, v := range toolsMap {
-		if strings.Contains(content, k) {
-			left := strings.Index(content, "{")
-			right := strings.LastIndex(content, "}")
-			argv := ""
-			if left >= 0 && right > left {
-				argv = content[left : right+1]
-			}
-
-			if sse {
-				middle.ResponseWithSSEToolCalls(ctx, MODEL, v, argv, created)
-				return false, nil
-			} else {
-				middle.ResponseWithToolCalls(ctx, MODEL, v, argv)
-				return false, nil
-			}
-		}
-	}
-	return true, nil
+	waitResponse(ctx, matchers, chatResponse, req.Stream)
 }
 
 func waitMessage(chatResponse chan types.PartialResponse) (content string, err error) {
@@ -152,9 +93,11 @@ func waitMessage(chatResponse chan types.PartialResponse) (content string, err e
 	return content, nil
 }
 
-func waitResponse(ctx *gin.Context, chatResponse chan types.PartialResponse, sse bool) {
-	content := ""
-	created := time.Now().Unix()
+func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan types.PartialResponse, sse bool) {
+	var (
+		content = ""
+		created = time.Now().Unix()
+	)
 	logrus.Infof("waitResponse ...")
 
 	for {
@@ -169,10 +112,11 @@ func waitResponse(ctx *gin.Context, chatResponse chan types.PartialResponse, sse
 		}
 
 		fmt.Printf("----- raw -----\n %s\n", message.Text)
+		raw := common.ExecMatchers(matchers, message.Text)
 		if sse {
-			middle.ResponseWithSSE(ctx, MODEL, message.Text, created)
-		} else if len(message.Text) > 0 {
-			content += message.Text
+			middle.ResponseWithSSE(ctx, MODEL, raw, created)
+		} else {
+			content += raw
 		}
 	}
 
