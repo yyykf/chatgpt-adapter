@@ -18,18 +18,18 @@ const MODEL = "coze"
 
 var (
 	// 35-16k
-	botId35_16k   = "7351996954622296072"
-	version35_16k = "1711770588592"
+	botId35_16k   = "7353052833752694791"
+	version35_16k = "1712016747307"
 	scene35_16k   = 2
 
 	// 8k
-	botId8k   = "7351993438726537234"
-	version8k = "1711770552220"
+	botId8k   = "7353047124357365778"
+	version8k = "1712016843935"
 	scene8k   = 2
 
 	// 128k
-	botId128k   = "7351996774292242439"
-	version128k = "1711770527855"
+	botId128k   = "7353048532129644562"
+	version128k = "1712016880672"
 	scene128k   = 2
 )
 
@@ -69,7 +69,8 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 	}
 
 	options := newOptions(proxies, pMessages)
-	chat := coze.New(cookie, options)
+	co, msToken := extCookie(cookie)
+	chat := coze.New(co, msToken, options)
 
 	query := ""
 	if notebook && len(pMessages) > 0 {
@@ -88,6 +89,19 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 	waitResponse(ctx, matchers, chatResponse, req.Stream)
 }
 
+func extCookie(co string) (cookie, msToken string) {
+	cookie = co
+	index := strings.Index(cookie, "[msToken=")
+	if index > -1 {
+		end := strings.Index(cookie[index:], "]")
+		if end > -1 {
+			msToken = cookie[index+6 : index+end]
+			cookie = cookie[:index] + cookie[index+end+1:]
+		}
+	}
+	return
+}
+
 func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
 	var (
 		cookie  = ctx.GetString("token")
@@ -96,7 +110,8 @@ func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
 
 	// 只绘画用3.5 16k即可
 	options := coze.NewDefaultOptions(botId35_16k, version35_16k, scene35_16k, proxies)
-	chat := coze.New(cookie, options)
+	co, msToken := extCookie(cookie)
+	chat := coze.New(co, msToken, options)
 	image, err := chat.Images(ctx.Request.Context(), req.Prompt)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
