@@ -7,11 +7,13 @@ import (
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle/bing"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle/claude"
+	coh "github.com/bincooo/chatgpt-adapter/v2/internal/middle/cohere"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle/coze"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle/gemini"
 	pg "github.com/bincooo/chatgpt-adapter/v2/internal/middle/playground"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle/sd"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
+	"github.com/bincooo/cohere-api"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"regexp"
@@ -25,7 +27,18 @@ func completions(ctx *gin.Context) {
 		return
 	}
 
-	matchers := common.XmlPlot(ctx, &chatCompletionRequest)
+	// cohere 默认generate模式
+	switch chatCompletionRequest.Model {
+	case cohere.COMMAND,
+		cohere.COMMAND_R,
+		cohere.COMMAND_LIGHT,
+		cohere.COMMAND_LIGHT_NIGHTLY,
+		cohere.COMMAND_NIGHTLY,
+		cohere.COMMAND_R_PLUS:
+		ctx.Set("notebook", true)
+	}
+
+	matchers := common.XmlFlags(ctx, &chatCompletionRequest)
 	if ctx.GetBool("debug") {
 		indent, err := json.MarshalIndent(chatCompletionRequest, "", "  ")
 		if err != nil {
@@ -46,6 +59,13 @@ func completions(ctx *gin.Context) {
 		gemini.Complete15(ctx, chatCompletionRequest, matchers)
 	case "coze":
 		coze.Complete(ctx, chatCompletionRequest, matchers)
+	case cohere.COMMAND,
+		cohere.COMMAND_R,
+		cohere.COMMAND_LIGHT,
+		cohere.COMMAND_LIGHT_NIGHTLY,
+		cohere.COMMAND_NIGHTLY,
+		cohere.COMMAND_R_PLUS:
+		coh.Complete(ctx, chatCompletionRequest, matchers)
 	default:
 		if strings.HasPrefix(chatCompletionRequest.Model, "claude-") {
 			claude.Complete(ctx, chatCompletionRequest, matchers)
@@ -63,7 +83,7 @@ func generations(ctx *gin.Context) {
 	}
 
 	token := ctx.GetString("token")
-	if strings.Contains(token, "[msToken=") {
+	if strings.Contains(token, "msToken=") || strings.Contains(token, "sessionid=") {
 		chatGenerationRequest.Model = "coze." + chatGenerationRequest.Model
 	} else if token == "sk-prodia-xl" {
 		ctx.Set("prodia.space", "xl")

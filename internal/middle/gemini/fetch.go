@@ -9,6 +9,7 @@ import (
 	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
 	"github.com/sirupsen/logrus"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,21 +26,25 @@ type funcDecl struct {
 }
 
 // 构建请求，返回响应
-func build(ctx context.Context, proxies, token, content string, req gpt.ChatCompletionRequest) (*http.Response, error) {
+func build(ctx context.Context, proxies, token string, messages []map[string]interface{}, req gpt.ChatCompletionRequest) (*http.Response, error) {
 	var (
 		burl = fmt.Sprintf(GOOGLE_BASE, "v1beta/models/gemini-1.0-pro:streamGenerateContent", token)
 	)
+
+	if req.Temperature < 0.1 {
+		req.Temperature = 1
+	}
 
 	if req.MaxTokens == 0 {
 		req.MaxTokens = 2048
 	}
 
 	if req.TopK == 0 {
-		req.TopK = 1
+		req.TopK = 100
 	}
 
 	if req.TopP == 0 {
-		req.TopP = 1
+		req.TopP = 0.95
 	}
 
 	// 参数基本与openai对齐
@@ -55,11 +60,9 @@ func build(ctx context.Context, proxies, token, content string, req gpt.ChatComp
 	}
 
 	marshal, err := json.Marshal(map[string]any{
-		"contents": struct {
-			Parts []map[string]string `json:"parts"`
-		}{[]map[string]string{
-			{"text": content},
-		}}, // [ { role: user, parts: [ 'xxx' ] } ]
+		"contents": []interface{}{
+			messages,
+		}, // [ { role: user, parts: [ { text: 'xxx' } ] } ]
 		"generationConfig": map[string]any{
 			"topK":            req.TopK,
 			"topP":            req.TopP,
@@ -123,6 +126,13 @@ func build(ctx context.Context, proxies, token, content string, req gpt.ChatComp
 	}
 
 	if res.StatusCode != http.StatusOK {
+		h := res.Header
+		if c := h.Get("content-type"); strings.Contains(c, "application/json") {
+			bts, e := io.ReadAll(res.Body)
+			if e == nil {
+				return nil, fmt.Errorf("%s: %s", res.Status, bts)
+			}
+		}
 		return nil, errors.New(res.Status)
 	}
 

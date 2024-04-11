@@ -3,17 +3,22 @@ package gemini
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
+	"github.com/bincooo/chatgpt-adapter/v2/pkg"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
+	com "github.com/bincooo/goole15/common"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bincooo/goole15"
@@ -21,7 +26,18 @@ import (
 
 const MODEL = "gemini"
 const GOOGLE_BASE = "https://generativelanguage.googleapis.com/%s?key=%s"
+const login = "http://127.0.0.1:8081/v1/login"
 
+// TODO clear loop
+var gkv = make(map[uint32]cookieOpts)
+var mu sync.Mutex
+
+type cookieOpts struct {
+	userAgent string
+	cookie    string
+}
+
+// https://ai.google.dev/models/gemini?hl=zh-cn
 func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
 	var (
 		cookie  = ctx.GetString("token")
@@ -31,14 +47,13 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 	// 复原转码
 	matchers = appendMatchers(matchers)
 
-	messages := req.Messages
-	messageL := len(messages)
+	messageL := len(req.Messages)
 	if messageL == 0 {
 		middle.ResponseWithV(ctx, -1, "[] is too short - 'messages'")
 		return
 	}
 
-	content, err := buildConversation(messages)
+	messages, err := buildConversation(req.Messages)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
@@ -49,7 +64,7 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 		return
 	}
 
-	response, err := build(ctx.Request.Context(), proxies, cookie, content, req)
+	response, err := build(ctx.Request.Context(), proxies, cookie, messages, req)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
@@ -57,22 +72,22 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 	waitResponse(ctx, matchers, response, req.Stream)
 }
 
+// https://ai.google.dev/models/gemini?hl=zh-cn
 func Complete15(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
 	var (
-		cookie  = ctx.GetString("token")
+		token   = ctx.GetString("token")
 		proxies = ctx.GetString("proxies")
 	)
 
 	// 复原转码
 	matchers = appendMatchers(matchers)
-	messages := req.Messages
-	messageL := len(messages)
+	messageL := len(req.Messages)
 	if messageL == 0 {
 		middle.ResponseWithV(ctx, -1, "[] is too short - 'messages'")
 		return
 	}
 
-	content, err := buildConversation15(messages)
+	messages, err := buildConversation15(req.Messages)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
@@ -84,14 +99,31 @@ func Complete15(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []comm
 	}
 
 	// 解析cookie
-	sign, auth, key, user, co := extCookie(cookie)
+	sign, auth, key, user, co, err := extCookie15(ctx.Request.Context(), token, proxies)
+	if err != nil {
+		middle.ResponseWithE(ctx, -1, err)
+		return
+	}
+
 	opts := goole.NewDefaultOptions(proxies)
+	opts.Temperature(req.Temperature)
+	opts.TopP(req.TopP)
+	opts.TopK(req.TopK)
+	h := common.Hash(token)
+	if c, ok := gkv[h]; ok {
+		opts.UA(c.userAgent)
+	}
+
 	chat := goole.New(co, sign, auth, key, user, opts)
-	ch, err := chat.Reply(ctx.Request.Context(), content)
+	ch, err := chat.Reply(ctx.Request.Context(), messages)
 	if err != nil {
 		code := -1
-		if strings.Contains(err.Error(), "429 Too Many Requests") {
+		errMessage := err.Error()
+		if strings.Contains(errMessage, "429 Too Many Requests") {
 			code = http.StatusTooManyRequests
+		}
+		if strings.Contains(errMessage, "500 Internal Server Error") {
+			delete(gkv, h) // 尚不清楚 500 错误的原因
 		}
 		middle.ResponseWithE(ctx, code, err)
 		return
@@ -99,8 +131,81 @@ func Complete15(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []comm
 	waitResponse15(ctx, matchers, ch, req.Stream)
 }
 
-func extCookie(co string) (sign, auth, key, user string, cookie string) {
-	cookie = co
+func extCookie15(ctx context.Context, token, proxies string) (sign, auth, key, user string, cookie string, err error) {
+	var opts cookieOpts
+	h := common.Hash(token)
+
+	if !strings.Contains(token, "@gmail.com|") {
+		// 不走接口获取的token
+		opts = cookieOpts{
+			cookie: token,
+		}
+		//
+	} else if co, ok := gkv[h]; ok {
+		opts = co
+		logrus.Info("cookie: ", co.cookie)
+	} else {
+		s := strings.Split(token, "|")
+		if len(s) < 4 {
+			err = errors.New("invalid token")
+			return
+		}
+
+		gLogin := pkg.Config.GetString("goole")
+		if gLogin == "" {
+			gLogin = login
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		timeout, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+
+		response, e := com.New().
+			Proxies(proxies).
+			URL(gLogin).
+			Method(http.MethodPost).
+			Context(timeout).
+			Header("Authorization", s[3]).
+			SetBody(map[string]string{
+				"mail":   s[0],
+				"cMail":  s[1],
+				"passwd": s[2],
+			}).
+			JsonHeader().
+			Do()
+		if e != nil {
+			err = errors.New("fetch cookies failed")
+			return
+		}
+
+		if response.StatusCode != http.StatusOK {
+			err = errors.New("fetch cookies failed: " + response.Status)
+			return
+		}
+
+		var result map[string]interface{}
+		e = com.ToObj(response, &result)
+		if e != nil {
+			err = errors.New(fmt.Sprintf("fetch cookies failed: %v", e))
+			return
+		}
+
+		if !reflect.DeepEqual(result["ok"], true) {
+			err = errors.New(fmt.Sprintf("fetch cookies failed: %s", result["message"]))
+			return
+		}
+
+		opts = cookieOpts{
+			userAgent: result["userAgent"].(string),
+			cookie:    result["cookies"].(string),
+		}
+		gkv[h] = opts
+	}
+
+	cookie = opts.cookie
+	logrus.Info("cookie: ", cookie)
 	index := strings.Index(cookie, "[sign=")
 	if index > -1 {
 		end := strings.Index(cookie[index:], "]")
@@ -301,7 +406,7 @@ func waitResponse15(ctx *gin.Context, matchers []common.Matcher, ch chan string,
 			fmt.Printf("----- raw -----\n %s\n", raw)
 			raw = common.ExecMatchers(matchers, raw)
 			if sse {
-				middle.ResponseWithSSE(ctx, MODEL, raw, created)
+				middle.ResponseWithSSE(ctx, MODEL+"-1.5", raw, created)
 			} else {
 				content += raw
 			}
@@ -309,16 +414,16 @@ func waitResponse15(ctx *gin.Context, matchers []common.Matcher, ch chan string,
 	}
 
 	if !sse {
-		middle.ResponseWith(ctx, MODEL, content)
+		middle.ResponseWith(ctx, MODEL+"-1.5", content)
 	} else {
-		middle.ResponseWithSSE(ctx, MODEL, "[DONE]", created)
+		middle.ResponseWithSSE(ctx, MODEL+"-1.5", "[DONE]", created)
 	}
 }
 
-func buildConversation(messages []map[string]string) (string, error) {
+func buildConversation(messages []map[string]string) (newMessages []map[string]interface{}, err error) {
 	pos := len(messages) - 1
 	if pos < 0 {
-		return "", nil
+		return
 	}
 
 	pos = 0
@@ -329,22 +434,38 @@ func buildConversation(messages []map[string]string) (string, error) {
 
 	condition := func(expr string) string {
 		switch expr {
-		case "system", "function", "assistant":
-			return expr
-		case "user":
-			return "human"
+		case "system", "user", "function":
+			return "user"
+		case "assistant":
+			return "model"
 		default:
 			return ""
 		}
 	}
 
-	pMessages := ""
-
 	// 合并历史对话
+	// [ { role: user, parts: [ { text: 'xxx' } ] } ]
 	for {
 		if pos >= messageL {
 			if len(buffer) > 0 {
-				pMessages += fmt.Sprintf("%s:\n %s\n\n", strings.Title(role), strings.Join(buffer, "\n\n"))
+				newMessages = append(newMessages, map[string]interface{}{
+					"role": role,
+					"parts": []interface{}{
+						map[string]string{
+							"text": strings.Join(buffer, "\n\n"),
+						},
+					},
+				})
+			}
+			if role == "model" { //
+				newMessages = append(newMessages, map[string]interface{}{
+					"role": "user",
+					"parts": []interface{}{
+						map[string]string{
+							"text": "continue",
+						},
+					},
+				})
 			}
 			break
 		}
@@ -353,7 +474,7 @@ func buildConversation(messages []map[string]string) (string, error) {
 		curr := condition(message["role"])
 		content := message["content"]
 		if curr == "" {
-			return "", errors.New(
+			return nil, errors.New(
 				fmt.Sprintf("'%s' is not one of ['system', 'assistant', 'user', 'function'] - 'messages.%d.role'",
 					message["role"], pos))
 		}
@@ -362,7 +483,7 @@ func buildConversation(messages []map[string]string) (string, error) {
 			role = curr
 		}
 
-		if curr == "function" {
+		if message["role"] == "function" {
 			content = fmt.Sprintf("这是系统内置tools工具的返回结果: (%s)\n\n##\n%s\n##", message["name"], content)
 		}
 
@@ -370,18 +491,25 @@ func buildConversation(messages []map[string]string) (string, error) {
 			buffer = append(buffer, content)
 			continue
 		}
-		pMessages += fmt.Sprintf("%s: \n%s\n\n", strings.Title(role), strings.Join(buffer, "\n\n"))
+		newMessages = append(newMessages, map[string]interface{}{
+			"role": role,
+			"parts": []interface{}{
+				map[string]string{
+					"text": strings.Join(buffer, "\n\n"),
+				},
+			},
+		})
 		buffer = append(make([]string, 0), content)
 		role = curr
 	}
 
-	return pMessages, nil
+	return
 }
 
-func buildConversation15(messages []map[string]string) (string, error) {
+func buildConversation15(messages []map[string]string) ([]goole.Message, error) {
 	pos := len(messages) - 1
 	if pos < 0 {
-		return "", nil
+		return nil, errors.New("messages is empty")
 	}
 
 	pos = 0
@@ -392,10 +520,8 @@ func buildConversation15(messages []map[string]string) (string, error) {
 
 	condition := func(expr string) string {
 		switch expr {
-		case "system", "function", "assistant":
+		case "user", "system", "function", "assistant":
 			return expr
-		case "user":
-			return "human"
 		default:
 			return ""
 		}
@@ -419,7 +545,7 @@ func buildConversation15(messages []map[string]string) (string, error) {
 		curr := condition(message["role"])
 		content := message["content"]
 		if curr == "" {
-			return "", errors.New(
+			return nil, errors.New(
 				fmt.Sprintf("'%s' is not one of ['system', 'assistant', 'user', 'function'] - 'messages.%d.role'",
 					message["role"], pos))
 		}
@@ -445,7 +571,7 @@ func buildConversation15(messages []map[string]string) (string, error) {
 		role = curr
 	}
 
-	return goole.MergeMessages(pMessages), nil
+	return pMessages, nil
 }
 
 //

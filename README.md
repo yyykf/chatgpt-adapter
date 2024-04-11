@@ -48,10 +48,16 @@ model 列表
     "owned_by": "coze-adapter"
 },
 {
-    "id":       "gemini",
+    "id":       "gemini-1.0",
     "object":   "model",
     "created":  1686935002,
     "owned_by": "gemini-adapter"
+},
+{
+    "id":       "command-r-plus",
+    "object":   "model",
+    "created":  1686935002,
+    "owned_by": "cohere-adapter"
 }
 ```
 
@@ -93,10 +99,7 @@ gemini:
 > 在 `ai.google.dev` 中申请，获取 token凭证就是 `Authorization` 参数
 
 coze:
-> 在 `www.coze.com` 官网中登陆，浏览器 `cookies` 中取出 `sessionid` + `msToken` 的值就是 `Authorization` 参数
-> 
-> 格式例子:
-> 781xxx[msToken=xxx]
+> 在 `www.coze.com` 官网中登陆，浏览器 `cookies` 中复制完整的 `cookie` 就是 `Authorization` 参数
 
 
 #### free画图接口
