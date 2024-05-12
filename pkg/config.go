@@ -10,8 +10,8 @@ var (
 	Config *viper.Viper
 )
 
-func LoadConfig(configPath string) (*viper.Viper, error) {
-	data, err := os.ReadFile(configPath)
+func LoadConfig() (*viper.Viper, error) {
+	data, err := os.ReadFile("config.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -25,8 +25,8 @@ func LoadConfig(configPath string) (*viper.Viper, error) {
 	return vip, nil
 }
 
-func Init(configPath string) {
-	config, err := LoadConfig(configPath)
+func Init() {
+	config, err := LoadConfig()
 	if err != nil {
 		panic(err)
 	}
