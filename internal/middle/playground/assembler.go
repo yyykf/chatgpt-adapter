@@ -4,21 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
+	com "github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
+	"github.com/bincooo/gio.emits"
+	"github.com/bincooo/gio.emits/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"io"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/bincooo/sdio"
 )
 
 type modelPayload struct {
@@ -104,7 +104,7 @@ var (
 )
 
 func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
-	hash := sdio.SessionHash()
+	hash := emits.SessionHash()
 	var (
 		cookie = ctx.GetString("token")
 		domain = pkg.Config.GetString("domain")
@@ -173,7 +173,7 @@ func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
 		middle.ResponseWithE(ctx, -1, err)
 		return
 	}
-	file, err := common.CreateBase64Image(mc.Images[0].Url, "jpg")
+	file, err := com.SaveBase64(mc.Images[0].Url, "jpg")
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
@@ -183,6 +183,15 @@ func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
 		domain = fmt.Sprintf("http://127.0.0.1:%d", ctx.GetInt("port"))
 	}
 	file = fmt.Sprintf("%s/file/%s", domain, file)
+	if (req.Size == "HD" || strings.HasPrefix(req.Size, "1792x")) && com.HasMfy() {
+		v, e := com.Magnify(ctx, file)
+		if e != nil {
+			logrus.Error(e)
+		} else {
+			file = v
+		}
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"created": time.Now().Unix(),
 		"styles":  models,
@@ -191,11 +200,10 @@ func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
 		},
 		"currStyle": model,
 	})
-	return
 }
 
 func convertToModel(style string) string {
-	if common.Contains(models, style) {
+	if com.Contains(models, style) {
 		return style
 	}
 	return models[rand.Intn(len(models))]
@@ -206,39 +214,19 @@ func fetch(ctx context.Context, proxies, cookie string, marshal []byte) (*http.R
 		cookie = "__Secure-next-auth.session-token=" + cookie
 	}
 
-	client, err := common.NewHttpClient(proxies)
-	if err != nil {
-		return nil, err
-	}
-
 	baseUrl := "https://playground.com"
-	request, err := http.NewRequest(http.MethodPost, baseUrl+"/api/models", bytes.NewReader(marshal))
-	if err != nil {
-		return nil, err
-	}
-
-	h := request.Header
-	h.Add("host", "playground.com")
-	h.Add("origin", "https://playground.com")
-	h.Add("referer", "https://playground.com/create")
-	h.Add("accept-language", "en-US,en;q=0.9")
-	h.Add("content-type", "application/json")
-	h.Add("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	h.Add("x-forwarded-for", common.RandomIp())
-	h.Add("cookie", cookie)
-
-	if err = middle.IsCanceled(ctx); err != nil {
-		return nil, err
-	}
-
-	response, e := client.Do(request.WithContext(ctx))
-	if e != nil {
-		return nil, e
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(response.Status)
-	}
-	return response, nil
-
+	return common.ClientBuilder().
+		Proxies(proxies).
+		Context(ctx).
+		POST(baseUrl+"/api/models").
+		Header("host", "playground.com").
+		Header("origin", "https://playground.com").
+		Header("referer", "https://playground.com/create").
+		Header("accept-language", "en-US,en;q=0.9").
+		Header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36").
+		Header("x-forwarded-for", common.RandIP()).
+		Header("cookie", cookie).
+		JHeader().
+		Bytes(marshal).
+		DoWith(http.StatusOK)
 }

@@ -1,16 +1,16 @@
 package cmd
 
 import (
+	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/gin.handler"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version    = "v2.0.0"
-	proxies    string
-	port       int
-	configPath string
+	version = "v2.0.0"
+	proxies string
+	port    int
 
 	Cmd = &cobra.Command{
 		Use:   "ChatGPT-Adapter",
@@ -19,16 +19,16 @@ var (
 			"项目地址：https://github.com/bincooo/chatgpt-adapter",
 		Version: version,
 		Run: func(cmd *cobra.Command, args []string) {
-			pkg.Init(configPath)
 			handler.Bind(port, version, proxies)
 		},
 	}
 )
 
 func Init() {
+	pkg.Init()
+	common.Init()
 	Cmd.PersistentFlags().StringVar(&proxies, "proxies", "", "本地代理 proxies")
 	Cmd.PersistentFlags().IntVar(&port, "port", 8080, "服务端口 port")
-	Cmd.PersistentFlags().StringVar(&configPath, "configPath", "config.yaml", "配置文件路径")
 }
 
 func Exec() {

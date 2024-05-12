@@ -13,6 +13,7 @@ type ChatCompletionRequest struct {
 		Fun Function `json:"function"`
 		T   string   `json:"type"`
 	} `json:"tools"`
+	ToolChoice string `json:"tool_choice"`
 }
 
 type ChatGenerationRequest struct {
@@ -45,6 +46,7 @@ type ChatCompletionResponse struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 	} `json:"error"`
+	Usage map[string]int `json:"usage"`
 }
 
 type ChatCompletionResponseChoice struct {
@@ -59,5 +61,5 @@ type ChatCompletionResponseChoice struct {
 		Content   string                   `json:"content"`
 		ToolCalls []map[string]interface{} `json:"tool_calls"`
 	} `json:"delta"`
-	FinishReason string `json:"finish_reason"`
+	FinishReason *string `json:"finish_reason"`
 }

@@ -1,4 +1,4 @@
-package coze
+package lmsys
 
 import (
 	"errors"
@@ -6,7 +6,6 @@ import (
 	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
-	"github.com/bincooo/coze-api"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
@@ -14,24 +13,11 @@ import (
 	"time"
 )
 
-const MODEL = "coze"
+const (
+	MODEL = "lmsys"
+)
 
 var (
-	// 35-16k
-	botId35_16k   = "7353052833752694791"
-	version35_16k = "1712016747307"
-	scene35_16k   = 2
-
-	// 8k
-	botId8k   = "7353047124357365778"
-	version8k = "1712645567468"
-	scene8k   = 2
-
-	// 128k
-	botId128k   = "7353048532129644562"
-	version128k = "1712016880672"
-	scene128k   = 2
-
 	blocks = []string{
 		"<|system|>",
 		"<|user|>",
@@ -42,12 +28,8 @@ var (
 )
 
 func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common.Matcher) {
-	var (
-		cookie   = ctx.GetString("token")
-		proxies  = ctx.GetString("proxies")
-		notebook = ctx.GetBool("notebook")
-	)
-
+	req.Model = req.Model[6:]
+	proxies := ctx.GetString("proxies")
 	messages := req.Messages
 	messageL := len(messages)
 	if messageL == 0 {
@@ -56,7 +38,7 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 	}
 
 	if messages[messageL-1]["role"] != "function" && len(req.Tools) > 0 {
-		goOn, e := completeToolCalls(ctx, cookie, proxies, req)
+		goOn, e := completeToolCalls(ctx, proxies, req)
 		if e != nil {
 			errMessage := e.Error()
 			if strings.Contains(errMessage, "Login verification is invalid") {
@@ -70,33 +52,27 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 		}
 	}
 
-	pMessages, tokens, err := buildConversation(messages)
+	newMessages, tokens, err := buildConversation(messages)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
 	}
 
+	cancel := make(chan error, 1)
 	ctx.Set("tokens", tokens)
-	options := newOptions(proxies, pMessages)
-	co, msToken := extCookie(cookie)
-	chat := coze.New(co, msToken, options)
 
-	query := ""
-	if notebook && len(pMessages) > 0 {
-		// notebook 模式只取第一条 content
-		query = pMessages[0].Content
-	} else {
-		query = coze.MergeMessages(pMessages)
-	}
-
-	chatResponse, err := chat.Reply(ctx.Request.Context(), query)
+	ch, err := fetch(ctx, proxies, newMessages, options{
+		model:       req.Model,
+		temperature: req.Temperature,
+		topP:        req.TopP,
+		maxTokens:   req.MaxTokens,
+	})
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
 	}
 
 	// 自定义标记块中断
-	cancel := make(chan bool, 1)
 	matchers = append(matchers, &common.SymbolMatcher{
 		Find: "<|",
 		H: func(index int, content string) (state int, result string) {
@@ -106,7 +82,7 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 
 			for _, block := range blocks {
 				if strings.Contains(content, block) {
-					cancel <- true
+					cancel <- nil
 					return common.MAT_MATCHED, ""
 				}
 			}
@@ -114,73 +90,16 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 		},
 	})
 
-	waitResponse(ctx, matchers, cancel, chatResponse, req.Stream)
-}
-
-func extCookie(co string) (cookie, msToken string) {
-	cookie = co
-	index := strings.Index(cookie, "[msToken=")
-	if index > -1 {
-		end := strings.Index(cookie[index:], "]")
-		if end > -1 {
-			msToken = cookie[index+6 : index+end]
-			cookie = cookie[:index] + cookie[index+end+1:]
-		}
-	}
-	return
-}
-
-func Generation(ctx *gin.Context, req gpt.ChatGenerationRequest) {
-	var (
-		cookie  = ctx.GetString("token")
-		proxies = ctx.GetString("proxies")
-	)
-
-	// 只绘画用3.5 16k即可
-	options := coze.NewDefaultOptions(botId35_16k, version35_16k, scene35_16k, proxies)
-	co, msToken := extCookie(cookie)
-	chat := coze.New(co, msToken, options)
-	image, err := chat.Images(ctx.Request.Context(), req.Prompt)
-	if err != nil {
-		middle.ResponseWithE(ctx, -1, err)
-		return
-	}
-
-	if (req.Size == "HD" || strings.HasPrefix(req.Size, "1792x")) && common.HasMfy() {
-		v, e := common.Magnify(ctx, image)
-		if e != nil {
-			logrus.Error(e)
-		} else {
-			image = v
-		}
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"created": time.Now().Unix(),
-		"styles:": make([]string, 0),
-		"data": []map[string]string{
-			{"url": image},
+	// 违反内容中断并返回错误
+	matchers = append(matchers, &common.SymbolMatcher{
+		Find: "I did not actually provide any input that could violate",
+		H: func(index int, content string) (state int, result string) {
+			cancel <- errors.New("I did not actually provide any input that could violate content guidelines")
+			return common.MAT_MATCHED, ""
 		},
 	})
-}
 
-func newOptions(proxies string, pMessages []coze.Message) (options coze.Options) {
-	opts8k := coze.NewDefaultOptions(botId8k, version8k, scene8k, proxies)
-	opts128k := coze.NewDefaultOptions(botId128k, version128k, scene128k, proxies)
-
-	options = opts8k
-	tokensL := calcTokens(pMessages)
-	if tokensL > 7000 { // 大于7k token 使用 gpt-128k
-		options = opts128k
-	}
-	return
-}
-
-func calcTokens(messages []coze.Message) (tokensL int) {
-	for _, message := range messages {
-		tokensL += common.CalcTokens(message.Content)
-	}
-	return
+	waitResponse(ctx, matchers, ch, cancel, req.Stream)
 }
 
 func waitMessage(chatResponse chan string) (content string, err error) {
@@ -204,7 +123,7 @@ func waitMessage(chatResponse chan string) (content string, err error) {
 	return content, nil
 }
 
-func waitResponse(ctx *gin.Context, matchers []common.Matcher, cancel chan bool, chatResponse chan string, sse bool) {
+func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan string, cancel chan error, sse bool) {
 	content := ""
 	created := time.Now().Unix()
 	logrus.Infof("waitResponse ...")
@@ -212,7 +131,11 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, cancel chan bool,
 
 	for {
 		select {
-		case <-cancel:
+		case err := <-cancel:
+			if err != nil {
+				middle.ResponseWithE(ctx, -1, err)
+				return
+			}
 			goto label
 		default:
 			raw, ok := <-chatResponse
@@ -233,7 +156,7 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, cancel chan bool,
 
 			fmt.Printf("----- raw -----\n %s\n", raw)
 			raw = common.ExecMatchers(matchers, raw)
-			if sse {
+			if sse && len(raw) > 0 {
 				middle.ResponseWithSSE(ctx, MODEL, raw, nil, created)
 			}
 			content += raw
@@ -248,7 +171,7 @@ label:
 	}
 }
 
-func buildConversation(messages []map[string]string) (pMessages []coze.Message, tokens int, err error) {
+func buildConversation(messages []map[string]string) (newMessages string, tokens int, err error) {
 	var prompt string
 	pos := len(messages) - 1
 	if pos < 0 {
@@ -297,10 +220,7 @@ func buildConversation(messages []map[string]string) (pMessages []coze.Message, 
 		if pos >= messageL {
 			if len(buffer) > 0 {
 				tokens += common.CalcTokens(strings.Join(buffer, ""))
-				pMessages = append(pMessages, coze.Message{
-					Role:    role,
-					Content: strings.Join(buffer, "\n\n"),
-				})
+				newMessages += fmt.Sprintf("<|%s|>\n%s<|end|>", role, strings.Join(buffer, "\n\n"))
 			}
 			break
 		}
@@ -309,7 +229,7 @@ func buildConversation(messages []map[string]string) (pMessages []coze.Message, 
 		curr := condition(message["role"])
 		content := message["content"]
 		if curr == "" {
-			return nil, -1, errors.New(
+			return "", -1, errors.New(
 				fmt.Sprintf("'%s' is not one of ['system', 'assistant', 'user', 'function'] - 'messages.%d.role'",
 					message["role"], pos))
 		}
@@ -329,13 +249,11 @@ func buildConversation(messages []map[string]string) (pMessages []coze.Message, 
 		}
 
 		tokens += common.CalcTokens(strings.Join(buffer, ""))
-		pMessages = append(pMessages, coze.Message{
-			Role:    role,
-			Content: strings.Join(buffer, "\n\n"),
-		})
+		newMessages += fmt.Sprintf("<|%s|>\n%s<|end|>\n\n", role, strings.Join(buffer, "\n\n"))
 		buffer = append(make([]string, 0), content)
 		role = curr
 	}
 
-	return pMessages, tokens, nil
+	newMessages += "\n<|assistant|>"
+	return newMessages, tokens, nil
 }

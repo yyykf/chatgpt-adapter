@@ -1,19 +1,18 @@
-package coh
+package lmsys
 
 import (
 	"github.com/bincooo/chatgpt-adapter/v2/internal/agent"
 	"github.com/bincooo/chatgpt-adapter/v2/internal/middle"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
-	"github.com/bincooo/cohere-api"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
 
-func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCompletionRequest) (bool, error) {
+func completeToolCalls(ctx *gin.Context, proxies string, req gpt.ChatCompletionRequest) (bool, error) {
 	logrus.Infof("completeTools ...")
-	message, err := middle.BuildToolCallsTemplate(
+	prompt, err := middle.BuildToolCallsTemplate(
 		req.Tools,
 		req.Messages,
 		agent.CQConditions, 5)
@@ -21,23 +20,17 @@ func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCom
 		return false, err
 	}
 
-	pMessages := make([]cohere.Message, 0)
-	chat := cohere.New(cookie, 0.4, req.Model, false)
-	chat.Proxies(proxies)
-	chat.TopK(req.TopK)
-	chat.MaxTokens(req.MaxTokens)
-	chat.StopSequences([]string{
-		"user:",
-		"assistant:",
-		"system:",
+	ch, err := fetch(ctx, proxies, prompt, options{
+		model:       req.Model,
+		temperature: req.Temperature,
+		topP:        req.TopP,
+		maxTokens:   req.MaxTokens,
 	})
-
-	chatResponse, err := chat.Reply(ctx.Request.Context(), pMessages, "", message)
 	if err != nil {
 		return false, err
 	}
 
-	content, err := waitMessage(chatResponse)
+	content, err := waitMessage(ch)
 	if err != nil {
 		return false, err
 	}
@@ -57,12 +50,12 @@ func completeToolCalls(ctx *gin.Context, cookie, proxies string, req gpt.ChatCom
 	}
 
 	// 收集参数
-	return parseToToolCall(ctx, cookie, req, proxies, fun)
+	return parseToToolCall(ctx, proxies, fun, req)
 }
 
-func parseToToolCall(ctx *gin.Context, cookie string, req gpt.ChatCompletionRequest, proxies string, fun *gpt.Function) (bool, error) {
+func parseToToolCall(ctx *gin.Context, proxies string, fun *gpt.Function, req gpt.ChatCompletionRequest) (bool, error) {
 	logrus.Infof("parseToToolCall ...")
-	message, err := middle.BuildToolCallsTemplate(
+	prompt, err := middle.BuildToolCallsTemplate(
 		[]struct {
 			Fun gpt.Function `json:"function"`
 			T   string       `json:"type"`
@@ -73,23 +66,17 @@ func parseToToolCall(ctx *gin.Context, cookie string, req gpt.ChatCompletionRequ
 		return false, err
 	}
 
-	pMessages := make([]cohere.Message, 0)
-	chat := cohere.New(cookie, 0.4, req.Model, false)
-	chat.Proxies(proxies)
-	chat.TopK(req.TopK)
-	chat.MaxTokens(req.MaxTokens)
-	chat.StopSequences([]string{
-		"user:",
-		"assistant:",
-		"system:",
+	ch, err := fetch(ctx, proxies, prompt, options{
+		model:       req.Model,
+		temperature: req.Temperature,
+		topP:        req.TopP,
+		maxTokens:   req.MaxTokens,
 	})
-
-	chatResponse, err := chat.Reply(ctx.Request.Context(), pMessages, "", message)
 	if err != nil {
 		return false, err
 	}
 
-	content, err := waitMessage(chatResponse)
+	content, err := waitMessage(ch)
 	if err != nil {
 		return false, err
 	}

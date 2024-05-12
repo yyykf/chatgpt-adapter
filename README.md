@@ -1,4 +1,14 @@
-## V2
+![Screenshot 2024-04-18 at 04 03 41](https://github.com/bincooo/chatgpt-adapter/assets/36452456/b130375c-f40b-404a-bade-6640f2aa29c9)
+
+------------------------------------
+
+<p align="center">
+  <h2 align="center">Adapter for ChatGPT</h2>
+  <p align="center">
+    一款将免费服务整合到一起的ChatGPT接口服务！
+    <br/>
+  </p>
+</p>
 
 #### 使用
 ```
@@ -29,36 +39,39 @@ Flags:
 
 model 列表
 ```txt
-{
-    "id":       "claude-2",
-    "object":   "model",
-    "created":  1686935002,
-    "owned_by": "claude-adapter"
-},
-{
-    "id":       "bing",
-    "object":   "model",
-    "created":  1686935002,
-    "owned_by": "bing-adapter"
-},
-{
-    "id":       "coze",
-    "object":   "model",
-    "created":  1686935002,
-    "owned_by": "coze-adapter"
-},
-{
-    "id":       "gemini-1.0",
-    "object":   "model",
-    "created":  1686935002,
-    "owned_by": "gemini-adapter"
-},
-{
-    "id":       "command-r-plus",
-    "object":   "model",
-    "created":  1686935002,
-    "owned_by": "cohere-adapter"
-}
+[
+    {
+        "id":       "claude",
+        "object":   "model",
+        "created":  1686935002,
+        "owned_by": "claude-adapter"
+    },
+    {
+        "id":       "bing",
+        "object":   "model",
+        "created":  1686935002,
+        "owned_by": "bing-adapter"
+    },
+    {
+        "id":       "coze",
+        "object":   "model",
+        "created":  1686935002,
+        "owned_by": "coze-adapter"
+    },
+    {
+        "id":       "gemini-1.0",
+        "object":   "model",
+        "created":  1686935002,
+        "owned_by": "gemini-adapter"
+    },
+    {
+        "id":       "command-r-plus",
+        "object":   "model",
+        "created":  1686935002,
+        "owned_by": "cohere-adapter"
+    }
+    (更多模型请访问API获取) ...
+]
 ```
 
 completions 对话
@@ -101,13 +114,16 @@ gemini:
 coze:
 > 在 `www.coze.com` 官网中登陆，浏览器 `cookies` 中复制完整的 `cookie` 就是 `Authorization` 参数
 
+lmsys:
+> 无需cookie， model参数为 `lmsys/` 前缀，例：`lmsys/claude-3-haiku-20240307`
+> 该接口有第三方监管，但用来进行正向对话还是不错的
 
 #### free画图接口
 
-提供了 `coze.dall-e-3`、 `sd.dall-e-3`、`xl.dall-e-3`, `kb.dall-e-3`, `pg.dall-e-3`，它们会根据你提供的 `Authorization` 选择其中的一个
+提供了 `coze.dall-e-3`、 `sd.dall-e-3`、`xl.dall-e-3`, `pg.dall-e-3`，它们会根据你提供的 `Authorization` 选择其中的一个
 
 ```txt
-// 下面三个固定写法
+// 下面2个固定写法
 
 // sd.dall-e-3
 Authorization: sk-prodia-sd
@@ -115,8 +131,6 @@ Authorization: sk-prodia-sd
 // xl.dall-e-3
 Authorization: sk-prodia-xl
 
-// kb.dall-e-3
-Authorization: sk-krebzonide
 ```
 
 api:

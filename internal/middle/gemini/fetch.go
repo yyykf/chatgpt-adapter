@@ -1,13 +1,12 @@
 package gemini
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bincooo/chatgpt-adapter/v2/internal/common"
 	"github.com/bincooo/chatgpt-adapter/v2/pkg/gpt"
+	"github.com/bincooo/gio.emits/common"
 	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
@@ -28,8 +27,12 @@ type funcDecl struct {
 // 构建请求，返回响应
 func build(ctx context.Context, proxies, token string, messages []map[string]interface{}, req gpt.ChatCompletionRequest) (*http.Response, error) {
 	var (
-		burl = fmt.Sprintf(GOOGLE_BASE, "v1beta/models/gemini-1.0-pro:streamGenerateContent", token)
+		burl = fmt.Sprintf(GOOGLE_BASE, "v1beta/models/gemini-1.0-pro-latest:streamGenerateContent", token)
 	)
+
+	if req.Model == "gemini-1.5" {
+		burl = fmt.Sprintf(GOOGLE_BASE, "v1beta/models/gemini-1.5-pro-latest:streamGenerateContent", token)
+	}
 
 	if req.Temperature < 0.1 {
 		req.Temperature = 1
@@ -48,10 +51,10 @@ func build(ctx context.Context, proxies, token string, messages []map[string]int
 	}
 
 	// 参数基本与openai对齐
-	_funcDecl := make([]funcDecl, 0)
+	_funcDecls := make([]funcDecl, 0)
 	if toolsL := len(req.Tools); toolsL > 0 {
 		for _, v := range req.Tools {
-			_funcDecl = append(_funcDecl, funcDecl{
+			_funcDecls = append(_funcDecls, funcDecl{
 				Name:        strings.Replace(v.Fun.Name, "-", "_", -1),
 				Description: v.Fun.Description,
 				Params:      v.Fun.Params,
@@ -59,24 +62,28 @@ func build(ctx context.Context, proxies, token string, messages []map[string]int
 		}
 	}
 
-	marshal, err := json.Marshal(map[string]any{
-		"contents": []interface{}{
-			messages,
-		}, // [ { role: user, parts: [ { text: 'xxx' } ] } ]
+	// fix: Please ensure that multiturn requests ends with a user role or a function response.
+	if messages[0]["role"] != "user" {
+		messages = append([]map[string]interface{}{
+			{
+				"role": "user",
+				"parts": []interface{}{
+					map[string]string{
+						"text": "hi ~",
+					},
+				},
+			},
+		}, messages...)
+	}
+
+	payload := map[string]any{
+		"contents": messages, // [ { role: user, parts: [ { text: 'xxx' } ] } ]
 		"generationConfig": map[string]any{
 			"topK":            req.TopK,
 			"topP":            req.TopP,
 			"temperature":     req.Temperature, // 0.8
 			"maxOutputTokens": req.MaxTokens,
 			"stopSequences":   []string{},
-		},
-		// 函数调用
-		"tools": []map[string][]any{
-			{
-				"function_declarations": []any{
-					_funcDecl,
-				},
-			},
 		},
 		// 安全级别
 		"safetySettings": []map[string]string{
@@ -97,25 +104,29 @@ func build(ctx context.Context, proxies, token string, messages []map[string]int
 				"threshold": "BLOCK_NONE",
 			},
 		},
-	})
+	}
+
+	if len(_funcDecls) > 0 {
+		// 函数调用
+		payload["tools"] = []map[string]interface{}{
+			{
+				"function_declarations": _funcDecls,
+			},
+		}
+	}
+	marshal, err := json.Marshal(payload)
 	if err != nil {
 		logrus.Error(err)
 		return nil, err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, burl, bytes.NewReader(marshal))
-	if err != nil {
-		logrus.Error(err)
-		return nil, err
-	}
-
-	client, err := common.NewHttpClient(proxies)
-	if err != nil {
-		logrus.Error(err)
-		return nil, err
-	}
-
-	res, err := client.Do(request.WithContext(ctx))
+	res, err := common.ClientBuilder().
+		Proxies(proxies).
+		Context(ctx).
+		POST(burl).
+		JHeader().
+		Bytes(marshal).
+		Do()
 	if err != nil {
 		logrus.Error(err)
 		var e *url.Error

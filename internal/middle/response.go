@@ -13,7 +13,11 @@ import (
 	"time"
 )
 
-var ContentCanceled = errors.New("request canceled")
+var (
+	ContentCanceled = errors.New("request canceled")
+	stop            = "stop"
+	toolCalls       = "tool_calls"
+)
 
 func IsCanceled(ctx context.Context) error {
 	select {
@@ -67,13 +71,13 @@ func ResponseWith(ctx *gin.Context, model, content string) {
 					Content   string                   `json:"content"`
 					ToolCalls []map[string]interface{} `json:"tool_calls"`
 				}{"assistant", content, nil},
-				FinishReason: "stop",
+				FinishReason: &stop,
 			},
 		},
 	})
 }
 
-func ResponseWithSSE(ctx *gin.Context, model, content string, created int64) {
+func ResponseWithSSE(ctx *gin.Context, model, content string, usage map[string]int, created int64) {
 	w := ctx.Writer
 	if w.Header().Get("Content-Type") == "" {
 		ctx.Writer.Header().Set("Content-Type", "text/event-stream")
@@ -96,7 +100,7 @@ func ResponseWithSSE(ctx *gin.Context, model, content string, created int64) {
 		Model:   model,
 		Created: created,
 		Id:      "chatcmpl-completion",
-		Object:  "chat.completion",
+		Object:  "chat.completion.chunk",
 		Choices: []gpt.ChatCompletionResponseChoice{
 			{
 				Index: 0,
@@ -105,9 +109,14 @@ func ResponseWithSSE(ctx *gin.Context, model, content string, created int64) {
 					Content   string                   `json:"content"`
 					ToolCalls []map[string]interface{} `json:"tool_calls"`
 				}{"assistant", content, nil},
-				FinishReason: finishReason,
+				// FinishReason: finishReason,
 			},
 		},
+		Usage: usage,
+	}
+
+	if finishReason != "" {
+		response.Choices[0].FinishReason = &finishReason
 	}
 
 	marshal, _ := json.Marshal(response)
@@ -147,7 +156,7 @@ func ResponseWithToolCalls(ctx *gin.Context, model, name, args string) {
 						},
 					},
 				},
-				FinishReason: "stop",
+				FinishReason: &stop,
 			},
 		},
 	})
@@ -211,7 +220,7 @@ func ResponseWithSSEToolCalls(ctx *gin.Context, model, name, args string, create
 	w.Flush()
 	time.Sleep(100 * time.Millisecond)
 
-	response.Choices[index].FinishReason = "tool_calls"
+	response.Choices[index].FinishReason = &toolCalls
 	response.Choices[index].Delta = &struct {
 		Role      string                   `json:"role"`
 		Content   string                   `json:"content"`

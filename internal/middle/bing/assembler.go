@@ -51,12 +51,13 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 		}
 	}
 
-	pMessages, prompt, err := buildConversation(pad, messages)
+	pMessages, prompt, tokens, err := buildConversation(pad, messages)
 	if err != nil {
 		middle.ResponseWithE(ctx, -1, err)
 		return
 	}
 
+	ctx.Set("tokens", tokens)
 	// 清理多余的标签
 	matchers = appendMatchers(matchers)
 	chat := edge.New(options.
@@ -168,6 +169,7 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan
 		pos     = 0
 		content = ""
 		created = time.Now().Unix()
+		tokens  = ctx.GetInt("tokens")
 	)
 
 	logrus.Info("waitResponse ...")
@@ -192,20 +194,19 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan
 		raw = common.ExecMatchers(matchers, raw)
 
 		if sse {
-			middle.ResponseWithSSE(ctx, MODEL, raw, created)
-		} else {
-			content += raw
+			middle.ResponseWithSSE(ctx, MODEL, raw, nil, created)
 		}
+		content += raw
 	}
 
 	if !sse {
 		middle.ResponseWith(ctx, MODEL, content)
 	} else {
-		middle.ResponseWithSSE(ctx, MODEL, "[DONE]", created)
+		middle.ResponseWithSSE(ctx, MODEL, "[DONE]", common.CalcUsageTokens(content, tokens), created)
 	}
 }
 
-func buildConversation(pad bool, messages []map[string]string) (pMessages []edge.ChatMessage, prompt string, err error) {
+func buildConversation(pad bool, messages []map[string]string) (pMessages []edge.ChatMessage, prompt string, tokens int, err error) {
 	pos := len(messages) - 1
 	if pos < 0 {
 		return
@@ -260,6 +261,7 @@ func buildConversation(pad bool, messages []map[string]string) (pMessages []edge
 	for {
 		if pos >= messageL {
 			if len(buffer) > 0 {
+				tokens += common.CalcTokens(strings.Join(buffer, ""))
 				pMessagesVar = append(pMessagesVar, blockProcessing(strings.Title(role), buffer))
 			}
 			break
@@ -269,7 +271,7 @@ func buildConversation(pad bool, messages []map[string]string) (pMessages []edge
 		curr := condition(message["role"])
 		content := message["content"]
 		if curr == "" {
-			return nil, "", errors.New(
+			return nil, "", -1, errors.New(
 				fmt.Sprintf("'%s' is not one of ['system', 'assistant', 'user', 'function'] - 'messages.%d.role'",
 					message["role"], pos))
 		}
@@ -286,9 +288,32 @@ func buildConversation(pad bool, messages []map[string]string) (pMessages []edge
 			buffer = append(buffer, content)
 			continue
 		}
+
+		tokens += common.CalcTokens(strings.Join(buffer, ""))
 		pMessagesVar = append(pMessagesVar, blockProcessing(strings.Title(role), buffer))
 		buffer = append(make([]string, 0), content)
 		role = curr
+	}
+
+	if pad { // 填充引导对话，尝试避免道歉
+		pMessages = []edge.ChatMessage{
+			{
+				"author": "user",
+				"text":   "你好",
+			},
+			{
+				"author": "bot",
+				"text":   "你好，这是必应。我可以用中文和你聊天，也可以帮你做一些有趣的事情，比如写诗，编程，创作歌曲，角色扮演等等。你想让我做什么呢？😊",
+			},
+			{
+				"author": "user",
+				"text":   "你能做什么",
+			},
+			{
+				"author": "bot",
+				"text":   "我能做很多有趣和有用的事情，比如：\n\n- 和你聊天，了解你的兴趣和爱好，扮演一些有趣的角色或故事。\n- 帮你搜索网上的信息，提供相关的网页、图片和新闻链接。\n- 为你创作一些内容，比如诗歌、故事、代码、歌曲等等，你可以告诉我你想要的主题或风格。\n- 描述你上传的图片，告诉你图片里有什么，或者画一幅你想要的图画。\n\n你想让我试试哪一项呢？😊",
+			},
+		}
 	}
 
 	if len(pMessagesVar) > 0 {
@@ -300,28 +325,7 @@ func buildConversation(pad bool, messages []map[string]string) (pMessages []edge
 		dict["messages"] = pMessagesVar
 		indent, e := json.MarshalIndent(dict, "", "  ")
 		if e != nil {
-			return nil, "", e
-		}
-
-		if pad { // 填充引导对话，尝试避免道歉
-			pMessages = []edge.ChatMessage{
-				{
-					"author": "user",
-					"text":   "你好",
-				},
-				{
-					"author": "bot",
-					"text":   "你好，这是必应。我可以用中文和你聊天，也可以帮你做一些有趣的事情，比如写诗，编程，创作歌曲，角色扮演等等。你想让我做什么呢？😊",
-				},
-				{
-					"author": "user",
-					"text":   "你能做什么",
-				},
-				{
-					"author": "bot",
-					"text":   "我能做很多有趣和有用的事情，比如：\n\n- 和你聊天，了解你的兴趣和爱好，扮演一些有趣的角色或故事。\n- 帮你搜索网上的信息，提供相关的网页、图片和新闻链接。\n- 为你创作一些内容，比如诗歌、故事、代码、歌曲等等，你可以告诉我你想要的主题或风格。\n- 描述你上传的图片，告诉你图片里有什么，或者画一幅你想要的图画。\n\n你想让我试试哪一项呢？😊",
-				},
-			}
+			return nil, "", -1, e
 		}
 
 		pMessages = append(pMessages, edge.ChatMessage{
@@ -335,5 +339,6 @@ func buildConversation(pad bool, messages []map[string]string) (pMessages []edge
 		})
 	}
 
-	return pMessages, prompt, nil
+	tokens += common.CalcTokens(prompt)
+	return pMessages, prompt, tokens, nil
 }

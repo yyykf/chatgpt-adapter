@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -68,11 +67,13 @@ func Complete(ctx *gin.Context, req gpt.ChatCompletionRequest, matchers []common
 			"system:",
 		})
 	} else {
-		p, s, m, err := buildChatConversation(messages)
+		p, s, m, tokens, err := buildChatConversation(messages)
 		if err != nil {
 			middle.ResponseWithE(ctx, -1, err)
 			return
 		}
+
+		ctx.Set("tokens", tokens)
 
 		system = s
 		message = m
@@ -115,8 +116,7 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan
 	content := ""
 	created := time.Now().Unix()
 	logrus.Infof("waitResponse ...")
-	prefix := ""
-	cmd := ctx.GetInt("cmd")
+	tokens := ctx.GetInt("tokens")
 
 	for {
 		raw, ok := <-chatResponse
@@ -136,35 +136,17 @@ func waitResponse(ctx *gin.Context, matchers []common.Matcher, chatResponse chan
 		}
 
 		fmt.Printf("----- raw -----\n %s\n", raw)
-		if cmd >= 0 {
-			if len(prefix) < 2 {
-				prefix += raw
-			}
-
-			if len(prefix) < 2 {
-				continue
-			}
-
-			matched, _ := regexp.MatchString("^\\d+:", prefix)
-			if !matched {
-				raw = fmt.Sprintf("%d: %s", cmd, prefix)
-			} else {
-				raw = prefix
-			}
-			cmd = -1
-		}
 		raw = common.ExecMatchers(matchers, raw)
 		if sse {
-			middle.ResponseWithSSE(ctx, MODEL, raw, created)
-		} else {
-			content += raw
+			middle.ResponseWithSSE(ctx, MODEL, raw, nil, created)
 		}
+		content += raw
 	}
 
 	if !sse {
 		middle.ResponseWith(ctx, MODEL, content)
 	} else {
-		middle.ResponseWithSSE(ctx, MODEL, "[DONE]", created)
+		middle.ResponseWithSSE(ctx, MODEL, "[DONE]", common.CalcUsageTokens(content, tokens), created)
 	}
 }
 
@@ -242,7 +224,7 @@ func buildConversation(messages []map[string]string) (content string, err error)
 	return cohere.MergeMessages(pMessages), nil
 }
 
-func buildChatConversation(messages []map[string]string) (pMessages []cohere.Message, system, content string, err error) {
+func buildChatConversation(messages []map[string]string) (pMessages []cohere.Message, system, content string, tokens int, err error) {
 	pos := len(messages) - 1
 	if pos < 0 {
 		return
@@ -278,7 +260,7 @@ func buildChatConversation(messages []map[string]string) (pMessages []cohere.Mes
 
 	role := ""
 	buffer := make([]string, 0)
-
+	var mergeMessages []cohere.Message
 	condition := func(expr string) string {
 		switch expr {
 		case "system", "user", "function", "assistant":
@@ -297,12 +279,13 @@ func buildChatConversation(messages []map[string]string) (pMessages []cohere.Mes
 		}
 	}
 
+	// merge one
 	for {
 		if pos >= messageL {
-			if len(buffer) > 0 {
-				pMessages = append(pMessages, cohere.Message{
+			if join := strings.Join(buffer, "\n\n"); len(strings.TrimSpace(join)) > 0 {
+				mergeMessages = append(mergeMessages, cohere.Message{
 					Role:    convRole(role),
-					Message: strings.Join(buffer, "\n\n"),
+					Message: join,
 				})
 			}
 			break
@@ -312,7 +295,7 @@ func buildChatConversation(messages []map[string]string) (pMessages []cohere.Mes
 		curr := condition(message["role"])
 		tMessage := message["content"]
 		if curr == "" {
-			return nil, "", "", errors.New(
+			return nil, "", "", -1, errors.New(
 				fmt.Sprintf("'%s' is not one of ['system', 'assistant', 'user', 'function'] - 'messages.%d.role'",
 					message["role"], pos))
 		}
@@ -327,11 +310,55 @@ func buildChatConversation(messages []map[string]string) (pMessages []cohere.Mes
 		}
 
 		if curr == role {
+			tMessage = strings.TrimSpace(tMessage)
+			if len(tMessage) > 0 {
+				buffer = append(buffer, tMessage)
+			}
+			continue
+		}
+		mergeMessages = append(mergeMessages, cohere.Message{
+			Role:    convRole(role),
+			Message: strings.Join(buffer, "\n\n"),
+		})
+		buffer = append(make([]string, 0), tMessage)
+		role = curr
+	}
+
+	messageL = len(mergeMessages)
+
+	pos = 0
+	role = ""
+	buffer = make([]string, 0)
+
+	// merge two
+	for {
+		if pos >= messageL {
+			join := strings.Join(buffer, "\n\n")
+			tokens += common.CalcTokens(join)
+			pMessages = append(pMessages, cohere.Message{
+				Role:    role,
+				Message: join,
+			})
+			break
+		}
+
+		message := mergeMessages[pos]
+		curr := message.Role
+		tMessage := message.Message
+
+		pos++
+		if role == "" {
+			role = curr
+		}
+
+		if curr == role {
 			buffer = append(buffer, tMessage)
 			continue
 		}
+
+		tokens += common.CalcTokens(strings.Join(buffer, ""))
 		pMessages = append(pMessages, cohere.Message{
-			Role:    convRole(role),
+			Role:    role,
 			Message: strings.Join(buffer, "\n\n"),
 		})
 		buffer = append(make([]string, 0), tMessage)
